@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:parking/utils/globals.dart';
 
 class ApiService {
-  final String baseUrl = 'http://192.168.1.15:8282/parking_app/';
+  final String baseUrl = 'http://parking.terramobile.cl/parking_app/';
 
   Future<Map<String, dynamic>> get(String endpoint,
       {bool requiresAuth = true}) async {
@@ -95,10 +95,11 @@ class ApiService {
 
   Map<String, dynamic> _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.statusCode == 204 || response.statusCode == 201) {
-        // For 204 No Content, return an empty map
+      if (response.statusCode == 204) {
+        // Solo 204 No Content retorna un map vacío
         return {};
       }
+      // Para 200, 201, etc. parseamos el body si existe
       if (response.body.isNotEmpty) {
         try {
           return json.decode(response.body);
@@ -107,7 +108,6 @@ class ApiService {
           throw Exception('Error al decodificar la respuesta JSON: $e');
         }
       } else {
-        // If the body is empty but status is success, return an empty map
         return {};
       }
     } else {

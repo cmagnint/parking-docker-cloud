@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 import 'package:parking/services/parking_service.dart';
 
@@ -142,23 +143,20 @@ class AdministrarClienteState extends State<AdministrarCliente>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF00B894), // Verde esmeralda claro
-              Color(0xFF00A085), // Verde esmeralda medio
-              Color(0xFF2F4858), // Azul petróleo
+              Color(0xFF00B894),
+              Color(0xFF00A085),
+              Color(0xFF2F4858),
             ],
           ),
         ),
         child: Column(
           children: [
-            // AppBar personalizado
             _buildCustomAppBar(),
-
             Expanded(
               child: FadeTransition(
                 opacity: _fadeAnimation,
                 child: Padding(
-                  padding: const EdgeInsets.only(
-                      bottom: 80), // Padding para la barra de navegación
+                  padding: const EdgeInsets.only(bottom: 100),
                   child: _buildClientesPanel(),
                 ),
               ),
@@ -218,7 +216,7 @@ class AdministrarClienteState extends State<AdministrarCliente>
 
   Widget _buildClientesPanel() {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -232,9 +230,8 @@ class AdministrarClienteState extends State<AdministrarCliente>
       ),
       child: Column(
         children: [
-          // Header del panel
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -315,8 +312,6 @@ class AdministrarClienteState extends State<AdministrarCliente>
               ],
             ),
           ),
-
-          // Filtros
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -375,8 +370,6 @@ class AdministrarClienteState extends State<AdministrarCliente>
               ),
             ),
           ),
-
-          // Lista de clientes
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -438,7 +431,8 @@ class AdministrarClienteState extends State<AdministrarCliente>
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -460,12 +454,11 @@ class AdministrarClienteState extends State<AdministrarCliente>
           borderRadius: BorderRadius.circular(16),
           onTap: () => _mostrarUsuariosModal(cliente),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             child: Column(
               children: [
                 Row(
                   children: [
-                    // Estado badge
                     Container(
                       width: 50,
                       height: 50,
@@ -480,8 +473,6 @@ class AdministrarClienteState extends State<AdministrarCliente>
                       ),
                     ),
                     const SizedBox(width: 12),
-
-                    // Información del cliente
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,7 +492,6 @@ class AdministrarClienteState extends State<AdministrarCliente>
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              // Badge de tipo de cliente
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 6,
@@ -583,7 +573,6 @@ class AdministrarClienteState extends State<AdministrarCliente>
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Usuarios activos badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -614,7 +603,6 @@ class AdministrarClienteState extends State<AdministrarCliente>
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Acciones
                 Row(
                   children: [
                     Expanded(
@@ -752,6 +740,60 @@ class AdministrarClienteState extends State<AdministrarCliente>
   }
 }
 
+// Formateador de RUT chileno
+class RutInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    String text = newValue.text.replaceAll(RegExp(r'[^0-9kK]'), '');
+
+    if (text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    // Limitar a 9 caracteres (8 números + 1 dígito verificador)
+    if (text.length > 9) {
+      text = text.substring(0, 9);
+    }
+
+    String formatted = '';
+
+    if (text.length <= 1) {
+      formatted = text;
+    } else {
+      // Separar dígito verificador
+      String dv = text[text.length - 1];
+      String numero = text.substring(0, text.length - 1);
+
+      // Formatear con puntos
+      String reversed = numero.split('').reversed.join('');
+      String formattedReversed = '';
+
+      for (int i = 0; i < reversed.length; i++) {
+        if (i > 0 && i % 3 == 0) {
+          formattedReversed += '.';
+        }
+        formattedReversed += reversed[i];
+      }
+
+      numero = formattedReversed.split('').reversed.join('');
+      formatted = '$numero-$dv';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+// Función para limpiar el RUT (eliminar puntos y guiones)
+String limpiarRut(String rut) {
+  return rut.replaceAll(RegExp(r'[^0-9kK]'), '');
+}
+
 // Widget para editar cliente
 class _DialogoEditarCliente extends StatefulWidget {
   final Map<String, dynamic> cliente;
@@ -789,6 +831,7 @@ class _DialogoEditarClienteState extends State<_DialogoEditarCliente> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
       ),
@@ -1050,21 +1093,38 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
   final TextEditingController _regionController = TextEditingController();
   final TextEditingController _notaController = TextEditingController();
 
-  String _tipoCliente = 'SOCIEDAD'; // SOCIEDAD o PERSONA
+  String _tipoCliente = 'SOCIEDAD';
   bool _isCreating = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Agregar listeners para actualizar el estado cuando cambien los campos
+    _nombreRepresentanteController.addListener(_actualizarEstado);
+    _rutRepresentanteController.addListener(_actualizarEstado);
+    _correoController.addListener(_actualizarEstado);
+    _direccionController.addListener(_actualizarEstado);
+    _comunaController.addListener(_actualizarEstado);
+    _ciudadController.addListener(_actualizarEstado);
+    _regionController.addListener(_actualizarEstado);
+    _razonSocialController.addListener(_actualizarEstado);
+    _rutSociedadController.addListener(_actualizarEstado);
+    _giroController.addListener(_actualizarEstado);
+  }
+
+  void _actualizarEstado() {
+    setState(() {});
+  }
+
+  @override
   void dispose() {
-    // Representante legal
     _nombreRepresentanteController.dispose();
     _rutRepresentanteController.dispose();
     _correoController.dispose();
     _telefonoController.dispose();
-    // Sociedad
     _razonSocialController.dispose();
     _rutSociedadController.dispose();
     _giroController.dispose();
-    // Ubicación
     _direccionController.dispose();
     _comunaController.dispose();
     _ciudadController.dispose();
@@ -1073,28 +1133,33 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
     super.dispose();
   }
 
-  void _crearUsuario() async {
-    // Validar campos siempre obligatorios
-    if (_nombreRepresentanteController.text.isEmpty ||
-        _rutRepresentanteController.text.isEmpty ||
-        _correoController.text.isEmpty ||
-        _direccionController.text.isEmpty ||
-        _comunaController.text.isEmpty ||
-        _ciudadController.text.isEmpty ||
-        _regionController.text.isEmpty) {
-      _mostrarDialogo('Error',
-          'Los campos del representante legal y la ubicación son obligatorios');
-      return;
+  // Getter para verificar si todos los campos obligatorios están llenos
+  bool get _camposObligatoriosCompletos {
+    // Campos siempre obligatorios
+    bool camposBasicos = _nombreRepresentanteController.text.isNotEmpty &&
+        _rutRepresentanteController.text.isNotEmpty &&
+        _correoController.text.isNotEmpty &&
+        _direccionController.text.isNotEmpty &&
+        _comunaController.text.isNotEmpty &&
+        _ciudadController.text.isNotEmpty &&
+        _regionController.text.isNotEmpty;
+
+    // Si es SOCIEDAD, verificar campos adicionales
+    if (_tipoCliente == 'SOCIEDAD') {
+      return camposBasicos &&
+          _razonSocialController.text.isNotEmpty &&
+          _rutSociedadController.text.isNotEmpty &&
+          _giroController.text.isNotEmpty; // Giro ahora es obligatorio
     }
 
-    // Si es SOCIEDAD, validar campos adicionales
-    if (_tipoCliente == 'SOCIEDAD') {
-      if (_razonSocialController.text.isEmpty ||
-          _rutSociedadController.text.isEmpty) {
-        _mostrarDialogo('Error',
-            'Para sociedades, la razón social y RUT de la sociedad son obligatorios');
-        return;
-      }
+    return camposBasicos;
+  }
+
+  void _crearUsuario() async {
+    if (!_camposObligatoriosCompletos) {
+      _mostrarDialogo(
+          'Error', 'Por favor complete todos los campos obligatorios');
+      return;
     }
 
     setState(() {
@@ -1102,11 +1167,11 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
     });
 
     try {
-      // Preparar datos base
+      // Preparar datos base con RUTs limpios
       final Map<String, dynamic> requestData = {
         'tipo_cliente': _tipoCliente,
-        // Representante legal (siempre)
-        'rut_representante': _rutRepresentanteController.text,
+        // Representante legal (siempre) - RUT limpio
+        'rut_representante': limpiarRut(_rutRepresentanteController.text),
         'nombre_representante': _nombreRepresentanteController.text,
         'correo': _correoController.text,
         'telefono': _telefonoController.text,
@@ -1119,10 +1184,10 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
         'estado': 'ACTIVO',
       };
 
-      // Si es SOCIEDAD, agregar campos específicos
+      // Si es SOCIEDAD, agregar campos específicos con RUT limpio
       if (_tipoCliente == 'SOCIEDAD') {
         requestData['razon_social'] = _razonSocialController.text;
-        requestData['rut_sociedad'] = _rutSociedadController.text;
+        requestData['rut_sociedad'] = limpiarRut(_rutSociedadController.text);
         requestData['giro'] = _giroController.text;
       }
 
@@ -1139,18 +1204,11 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
         Navigator.of(context).pop();
         widget.onClienteCreado();
 
-        // Extraer datos con validación
         final usuarioAdmin = data['usuario_admin'] ?? {};
-        final correo = usuarioAdmin['correo'] ?? 'No disponible';
+        final rut = usuarioAdmin['rut'] ?? 'No disponible';
         final password = usuarioAdmin['password_temporal'] ?? 'No disponible';
 
-        // Mostrar la contraseña temporal
-        _mostrarDialogoConPassword(
-          'Cliente creado exitosamente',
-          'Usuario: $correo\n'
-              'Contraseña temporal: $password\n\n'
-              'Por favor, guarda esta contraseña, no se mostrará nuevamente.',
-        );
+        _mostrarDialogoConPassword(rut, password);
       } else {
         _mostrarDialogo('Error', data['message'] ?? 'Error desconocido');
       }
@@ -1202,7 +1260,25 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
     );
   }
 
-  void _mostrarDialogoConPassword(String titulo, String mensaje) {
+  // Función auxiliar para copiar al portapapeles
+  Future<void> _copiarAlPortapapeles(String texto, String etiqueta) async {
+    await Clipboard.setData(ClipboardData(text: texto));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$etiqueta copiado al portapapeles'),
+          backgroundColor: const Color(0xFF00B894),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _mostrarDialogoConPassword(String rut, String password) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1222,60 +1298,226 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
                 child: const Icon(Icons.check_circle, color: Colors.green),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Text(titulo)),
+              const Expanded(
+                child: Text(
+                  'Cliente creado exitosamente',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Campo RUT con botón copiar
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: SelectableText(
-                  mensaje,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 14,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.badge,
+                          size: 18,
+                          color: Color(0xFF2F4858),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Usuario (RUT)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2F4858),
+                          ),
+                        ),
+                        const Spacer(),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => _copiarAlPortapapeles(rut, 'RUT'),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00B894).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.copy,
+                                    size: 14,
+                                    color: Color(0xFF00B894),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Copiar',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF00B894),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      rut,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2F4858),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.warning_amber,
-                      color: Colors.orange.shade700, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Guarda esta información de forma segura',
-                      style: TextStyle(
-                        color: Colors.orange.shade700,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+              // Campo Contraseña con botón copiar
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.lock,
+                          size: 18,
+                          color: Color(0xFF2F4858),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Contraseña temporal',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2F4858),
+                          ),
+                        ),
+                        const Spacer(),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () =>
+                                _copiarAlPortapapeles(password, 'Contraseña'),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00B894).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.copy,
+                                    size: 14,
+                                    color: Color(0xFF00B894),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Copiar',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF00B894),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      password,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        color: Color(0xFF2F4858),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Advertencia
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Guarda esta información de forma segura. No se mostrará nuevamente.',
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
           actions: <Widget>[
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00B894),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00B894),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 2,
                 ),
+                child: const Text(
+                  'Entendido',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
               ),
-              child: const Text('Entendido'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
             ),
           ],
         );
@@ -1286,12 +1528,13 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
       ),
       child: Container(
-        width: MediaQuery.of(context).size.width * 0.9,
-        constraints: const BoxConstraints(maxHeight: 700, maxWidth: 600),
+        width: double.infinity,
+        height: MediaQuery.of(context).size.height * 0.9,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -1442,14 +1685,15 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
                       ),
                       const SizedBox(height: 14),
                       _buildModernTextField(
-                        'RUT Empresa (con DV, ej: 123456789) *',
+                        'RUT Empresa (ej: 9.771.793-1) *',
                         _rutSociedadController,
                         Icons.badge,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [RutInputFormatter()],
                       ),
                       const SizedBox(height: 14),
                       _buildModernTextField(
-                        'Giro Comercial (opcional)',
+                        'Giro Comercial *',
                         _giroController,
                         Icons.work,
                       ),
@@ -1490,11 +1734,12 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
                     const SizedBox(height: 14),
                     _buildModernTextField(
                       _tipoCliente == 'PERSONA'
-                          ? 'RUT (con DV, ej: 123456789) *'
-                          : 'RUT Representante (con DV) *',
+                          ? 'RUT (ej: 9.771.793-1) *'
+                          : 'RUT Representante (ej: 9.771.793-1) *',
                       _rutRepresentanteController,
                       Icons.badge,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [RutInputFormatter()],
                     ),
                     const SizedBox(height: 14),
                     _buildModernTextField(
@@ -1577,82 +1822,61 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
               ),
             ),
 
-            // Footer con botones
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+            // Footer con botón crear (solo visible cuando campos obligatorios están completos)
+            if (_camposObligatoriosCompletos)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isCreating ? null : _crearUsuario,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B894),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: _isCreating
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add_circle_outline, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Crear Cliente',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: _isCreating
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: _isCreating ? null : _crearUsuario,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00B894),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                      ),
-                      child: _isCreating
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.add_circle_outline, size: 18),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Crear',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -1664,10 +1888,12 @@ class _FormularioCrearClienteState extends State<_FormularioCrearCliente> {
     TextEditingController controller,
     IconData icon, {
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
@@ -1790,6 +2016,7 @@ class _DialogoUsuariosClienteState extends State<_DialogoUsuariosCliente> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
       ),
@@ -1803,7 +2030,6 @@ class _DialogoUsuariosClienteState extends State<_DialogoUsuariosCliente> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -1864,8 +2090,6 @@ class _DialogoUsuariosClienteState extends State<_DialogoUsuariosCliente> {
                 ],
               ),
             ),
-
-            // Lista de usuarios
             Expanded(
               child: _isLoading
                   ? const Center(
@@ -1932,7 +2156,6 @@ class _DialogoUsuariosClienteState extends State<_DialogoUsuariosCliente> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // Estado del usuario
             Container(
               width: 40,
               height: 40,
@@ -1949,8 +2172,6 @@ class _DialogoUsuariosClienteState extends State<_DialogoUsuariosCliente> {
               ),
             ),
             const SizedBox(width: 10),
-
-            // Información del usuario
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
