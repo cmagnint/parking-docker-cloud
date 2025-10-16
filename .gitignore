@@ -1,0 +1,144 @@
+# ============================================================================
+# GITIGNORE PARA CONTRATISTA DOCKER
+# ============================================================================
+
+# Archivos de producción con secretos (NUNCA SUBIR)
+.prod.env
+ssl/*.key
+ssl/*.pem
+ssl/private/
+
+# Logs
+*.log
+logs/
+**/*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+migrations/
+
+# Django
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+static/
+
+# Backups
+*.sql
+*.dump
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+
+
+# Angular (frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.angular/
+frontend/dist/
+.dist/
+package-lock.json
+
+# Certificates y keys (seguridad)
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Variables de entorno locales
+.env.local
+.env.*.local
+
+# Archivos temporales
+*.tmp
+*.temp
+.cache/
+.dev.env
+command-celery-redis-django.txt
+
+# ============================================================================
+# FLUTTER Y ANDROID (MOBILE APP)
+# ============================================================================
+
+# Flutter/Dart general
+*.class
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+**/doc/api/
+.buildlog/
+.history
+migrate_working_dir/
+
+# Android específico
+android/local.properties
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/gradle/wrapper/gradle-wrapper.jar
+android/key.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# APK y archivos compilados
+apk/
+*.apk
+*.aab
+app.*.symbols
+app.*.map.json
+
+# Archivos generados de Flutter
+**/ios/Flutter/.last_build_id
+**/android/.gradle
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+
+# Coverage
+coverage/
+
+# PostgreSQL data
+database/pgdata/
+database/pgdata/*
+
+# Backend volumes
+backend/media/
+backend/staticfiles/

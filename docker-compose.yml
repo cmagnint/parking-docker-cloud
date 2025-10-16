@@ -1,0 +1,76 @@
+networks:
+  parking_network:
+    driver: bridge
+
+volumes:
+  static_volume:
+  media_volume:
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: parking_db
+    restart: always
+    environment:
+      POSTGRES_DB: parking
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 19731223zE
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./database:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    networks:
+      - parking_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d parking"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: parking_backend
+    restart: always
+    command: >
+      sh -c "python manage.py makemigrations parking_app &&
+             python manage.py migrate parking_app &&
+             python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn parking.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120"
+   
+    environment:
+      - DJANGO_SETTINGS_MODULE=parking.settings
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=parking
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=19731223zE
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8181:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - parking_network
+
+  haproxy:
+    image: haproxy:2.8-alpine
+    container_name: parking_haproxy
+    restart: always
+    ports:
+      - "8282:8181"  
+      - "8505:8404"  
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - backend
+    networks:
+      - parking_network
+
