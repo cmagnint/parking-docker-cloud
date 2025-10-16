@@ -5,7 +5,7 @@ import 'package:parking/pages/mother_layout/estacionamiento/historial.dart';
 import 'package:parking/pages/mother_layout/estacionamiento/ingreso.dart';
 import 'package:parking/pages/login/change_pass.dart';
 import 'package:parking/screens/modulos.dart';
-import 'package:parking/pages/mother_layout/administracion/fijar_montos.dart';
+import 'package:parking/pages/mother_layout/administracion/parametros.dart';
 import 'package:parking/pages/mother_layout/administracion/modificar_registro.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:parking/pages/superadministracion/registro_superadmin.dart';
@@ -47,7 +47,7 @@ class MyApp extends StatelessWidget {
         '/Historial': (context) => const HistorialScreen(),
         '/ChangePassScreen': (context) => const ChangePassScreen(),
         '/Modulos': (context) => const ModuleScreen(),
-        '/FijarMonto': (context) => const FijarMontosScreen(),
+        '/FijarMonto': (context) => const ParametrosScreen(),
         '/ModificarRegistro': (context) => const ModificarRegistro(),
         '/SuperRegistro': (context) => const SuperRegistro(),
         '/SuperAdmin': (context) => const SuperAdminScreen(),

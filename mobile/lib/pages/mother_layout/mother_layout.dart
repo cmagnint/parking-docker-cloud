@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:parking/pages/mother_layout/administracion/crear_usuario.dart';
-import 'package:parking/pages/mother_layout/administracion/fijar_montos.dart';
+import 'package:parking/pages/mother_layout/administracion/parametros.dart';
 import 'package:parking/pages/mother_layout/administracion/modificar_registro.dart';
 import 'package:parking/pages/mother_layout/administracion/modificar_usuario.dart';
 import 'package:parking/pages/mother_layout/estacionamiento/crear_registro_cliente.dart';
@@ -37,7 +37,7 @@ class MotherLayoutState extends State<MotherLayout>
     //ADMINISTRACION
     const CrearUsuario(), // _selectedIndex = 3 CREAR USUARIO
     const ModificarUsuario(), // _selectedIndex = 4 MODIFICAR USUARIO
-    const FijarMontosScreen(), // _selectedIndex = 5 FIJAR MONTOS
+    const ParametrosScreen(), // _selectedIndex = 5 FIJAR MONTOS
     const ModificarRegistro(), // _selectedIndex = 6 MODIFICAR REGISTRO
     //ESTACIONAMIENTO
     const RegistroVehiculoScreen(), // _selectedIndex = 7 REGISTRAR VEHICULOS

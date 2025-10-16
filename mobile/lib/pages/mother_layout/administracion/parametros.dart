@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:parking/services/parking_service.dart';
 import 'package:parking/utils/globals.dart';
 
-class FijarMontosScreen extends StatefulWidget {
-  const FijarMontosScreen({super.key});
+class ParametrosScreen extends StatefulWidget {
+  const ParametrosScreen({super.key});
 
   @override
-  FijarMontosScreenState createState() => FijarMontosScreenState();
+  ParametrosScreenState createState() => ParametrosScreenState();
 }
 
-class FijarMontosScreenState extends State<FijarMontosScreen> {
+class ParametrosScreenState extends State<ParametrosScreen> {
   final ApiService _apiService = ApiService();
   String montoActual = '';
   String intervaloActual = '';
