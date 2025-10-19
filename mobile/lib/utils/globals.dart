@@ -12,7 +12,7 @@ class UserInfo {
   String name = '';
   String password = '';
   String email = '';
-  int clienteId = 0;
+  int sociedadId = 0;
   int valorParametro = 0;
   int tiempoParametro = 0;
   int montoMinimo = 0;

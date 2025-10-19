@@ -181,7 +181,7 @@ class ModificarRegistroState extends State<ModificarRegistro> {
     try {
       var response = await apiService.post('registro_por_fecha/', {
         'fecha': fechaFormateada,
-        'id_boss': userInfo.clienteId,
+        'id_boss': userInfo.sociedadId,
       });
       loggerGlobal.d(response);
       if (response['status'] == 'success') {

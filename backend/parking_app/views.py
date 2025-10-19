@@ -77,13 +77,13 @@ class CheckTokenView(APIView):
                 # Obtener parámetros
                 parametro = None
                 if sociedad_id:
-                    parametro = Parametro.objects.filter(cliente_id=sociedad_id).first()
+                    parametro = Parametro.objects.filter(sociedad_id=sociedad_id).first()
                 
                 return Response({
                     'status': 'success',
                     'valid': True,
                     'admin': usuario.is_admin,
-                    'cliente_id': sociedad_id,
+                    'sociedad_id': sociedad_id,
                     'correo': usuario.correo,
                     'superadmin': usuario.is_superadmin,
                     'name': usuario.nombre,
@@ -140,7 +140,8 @@ class LoginView(APIView):
                 return Response({
                     'status': 'success',
                     'message': 'Inicio de sesión exitoso',
-                    'admin': usuario.is_admin, # type: ignore
+                    'admin': usuario.is_admin,
+                    'rut': usuario.rut, 
                     'sociedad_id': id_sociedad,
                     'correo': usuario.correo, # type: ignore
                     'superadmin': usuario.is_superadmin, # type: ignore
@@ -891,7 +892,14 @@ class RegistroPorFechaAdminView(APIView):
 
 #---------------------------ADMINISTRACION-------------------------------------
 
-class CreateUserView(APIView):
+class UsuariosApiView(APIView):
+    """
+    Vista unificada para gestionar usuarios de una sociedad.
+    GET: Listar todos los usuarios de una sociedad
+    POST: Crear nuevo usuario
+    PUT: Actualizar usuario específico (nombre, correo, estado)
+    DELETE: Eliminar usuario (opcional)
+    """
     authentication_classes = [OAuth2Authentication]
     permission_classes = [IsAuthenticated, TokenHasAnyScope]
 
@@ -906,32 +914,301 @@ class CreateUserView(APIView):
             self.required_scopes = ['admin', 'write']
         return super().dispatch(request, *args, **kwargs)
 
-    def post(self, request):
-        serializer = UsuarioSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                user = serializer.save()
-                print(user)
-                random_password = secrets.token_urlsafe(16)
-                user.set_password(random_password) # type: ignore
-                user.save() # type: ignore
-                return Response({
-                    'status': 'success',
-                    'message': 'Usuario creado exitosamente',
-                    'data': serializer.data
-                }, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                print(e)
+    def get(self, request, id_sociedad, rut=None):
+        """
+        GET: Obtener usuarios de una sociedad
+        - Si se proporciona RUT, devuelve un usuario específico
+        - Si no, devuelve todos los usuarios de la sociedad (excepto admins)
+        """
+        try:
+            # Verificar que la sociedad existe
+            if not Sociedad.objects.filter(id=id_sociedad).exists():
                 return Response({
                     'status': 'error',
-                    'message': str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
-        print(serializer.errors)
-        return Response({
-            'status': 'error',
-            'message': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
-        
+                    'message': 'Sociedad no encontrada'
+                }, status=404)
+
+            # Si se busca un usuario específico por RUT
+            if rut:
+                try:
+                    usuario = Usuario.objects.get(
+                        rut=rut,
+                        sociedad_id=id_sociedad,
+                        is_admin=False
+                    )
+                    return Response({
+                        'rut': usuario.rut,
+                        'nombre': usuario.nombre,
+                        'correo': usuario.correo,
+                        'estado': usuario.estado,
+                    })
+                except Usuario.DoesNotExist:
+                    return Response({
+                        'status': 'error',
+                        'message': 'Usuario no encontrado'
+                    }, status=404)
+
+            # Listar todos los usuarios de la sociedad (excepto admins)
+            usuarios = Usuario.objects.filter(
+                sociedad_id=id_sociedad,
+                is_admin=False
+            ).order_by('-fecha_creacion')
+
+            data_usuarios = [{
+                'rut': usuario.rut,
+                'nombre': usuario.nombre,
+                'correo': usuario.correo,
+                'estado': usuario.estado,
+                'fecha_creacion': usuario.fecha_creacion.isoformat() if usuario.fecha_creacion else None,
+            } for usuario in usuarios]
+
+            return Response({
+                'status': 'success',
+                'usuarios': data_usuarios,
+                'total': len(data_usuarios)
+            })
+
+        except Exception as e:
+            print(f"Error en GET usuarios: {e}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+
+    def post(self, request, id_sociedad):
+        """
+        POST: Crear un nuevo usuario para la sociedad
+        Body: {
+            "rut": "12345678",
+            "nombre": "Juan Pérez",
+            "correo": "juan@email.com"
+        }
+        """
+        try:
+            data = request.data
+            print(f"Creando usuario para sociedad {id_sociedad}: {data}")
+
+            # Verificar que la sociedad existe
+            try:
+                sociedad = Sociedad.objects.get(id=id_sociedad)
+            except Sociedad.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'Sociedad no encontrada'
+                }, status=404)
+
+            # Validar campos requeridos
+            rut = data.get('rut', '').strip()
+            nombre = data.get('nombre', '').strip()
+            correo = data.get('correo', '').strip().lower()
+
+            if not rut or not nombre or not correo:
+                return Response({
+                    'status': 'error',
+                    'message': 'RUT, nombre y correo son obligatorios'
+                }, status=400)
+
+            # Validar formato de correo
+            if '@' not in correo or '.' not in correo.split('@')[-1]:
+                return Response({
+                    'status': 'error',
+                    'message': 'Formato de correo inválido'
+                }, status=400)
+
+            # Verificar que el RUT no exista
+            if Usuario.objects.filter(rut=rut).exists():
+                return Response({
+                    'status': 'error',
+                    'message': f'Ya existe un usuario con el RUT {rut}'
+                }, status=400)
+
+            # Verificar que el correo no exista
+            if Usuario.objects.filter(correo=correo).exists():
+                return Response({
+                    'status': 'error',
+                    'message': f'Ya existe un usuario con el correo {correo}'
+                }, status=400)
+
+            # Crear el usuario
+            import secrets
+            random_password = secrets.token_urlsafe(12)
+            
+            usuario = Usuario.objects.create(
+                rut=rut,
+                nombre=nombre,
+                correo=correo,
+                sociedad=sociedad,
+                is_admin=False,
+                is_superadmin=False,
+                estado='ON'
+            )
+            usuario.set_password(random_password)
+            usuario.save()
+
+            print(f"Usuario creado: {usuario.nombre} (RUT: {usuario.rut})")
+
+            return Response({
+                'status': 'success',
+                'message': 'Usuario creado exitosamente',
+                'usuario': {
+                    'rut': usuario.rut,
+                    'nombre': usuario.nombre,
+                    'correo': usuario.correo,
+                    'estado': usuario.estado,
+                    'password_temporal': random_password
+                }
+            }, status=201)
+
+        except Exception as e:
+            print(f"Error al crear usuario: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+
+    def put(self, request, id_sociedad, rut):
+        """
+        PUT: Actualizar un usuario específico
+        Body: {
+            "nombre": "Nuevo nombre" (opcional),
+            "correo": "nuevo@email.com" (opcional),
+            "estado": "ON" o "OFF" (opcional)
+        }
+        """
+        try:
+            data = request.data
+            print(f"Actualizando usuario {rut} de sociedad {id_sociedad}: {data}")
+
+            # Buscar el usuario
+            try:
+                usuario = Usuario.objects.get(
+                    rut=rut,
+                    sociedad_id=id_sociedad,
+                    is_admin=False
+                )
+            except Usuario.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'Usuario no encontrado'
+                }, status=404)
+
+            campos_modificados = []
+
+            # Actualizar nombre
+            if 'nombre' in data and data['nombre'].strip():
+                nuevo_nombre = data['nombre'].strip()
+                if nuevo_nombre != usuario.nombre:
+                    usuario.nombre = nuevo_nombre
+                    campos_modificados.append('nombre')
+
+            # Actualizar correo
+            if 'correo' in data and data['correo'].strip():
+                nuevo_correo = data['correo'].strip().lower()
+                
+                # Validar formato
+                if '@' not in nuevo_correo or '.' not in nuevo_correo.split('@')[-1]:
+                    return Response({
+                        'status': 'error',
+                        'message': 'Formato de correo inválido'
+                    }, status=400)
+                
+                # Verificar que no exista otro usuario con ese correo
+                if Usuario.objects.filter(correo=nuevo_correo).exclude(rut=rut).exists():
+                    return Response({
+                        'status': 'error',
+                        'message': 'El correo ya está en uso por otro usuario'
+                    }, status=400)
+                
+                if nuevo_correo != usuario.correo:
+                    usuario.correo = nuevo_correo
+                    campos_modificados.append('correo')
+
+            # Actualizar estado
+            if 'estado' in data:
+                nuevo_estado = data['estado'].upper()
+                if nuevo_estado not in ['ON', 'OFF']:
+                    return Response({
+                        'status': 'error',
+                        'message': 'Estado debe ser ON u OFF'
+                    }, status=400)
+                
+                if nuevo_estado != usuario.estado:
+                    usuario.estado = nuevo_estado
+                    campos_modificados.append('estado')
+
+            # Guardar cambios
+            if campos_modificados:
+                usuario.save()
+                mensaje = f"Usuario actualizado: {', '.join(campos_modificados)}"
+            else:
+                mensaje = "No se realizaron cambios"
+
+            return Response({
+                'status': 'success',
+                'message': mensaje,
+                'usuario': {
+                    'rut': usuario.rut,
+                    'nombre': usuario.nombre,
+                    'correo': usuario.correo,
+                    'estado': usuario.estado,
+                }
+            })
+
+        except Exception as e:
+            print(f"Error al actualizar usuario: {e}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+
+    def delete(self, request, id_sociedad, rut):
+        """
+        DELETE: Eliminar un usuario
+        """
+        try:
+            # Buscar el usuario
+            try:
+                usuario = Usuario.objects.get(
+                    rut=rut,
+                    sociedad_id=id_sociedad,
+                    is_admin=False
+                )
+            except Usuario.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'Usuario no encontrado'
+                }, status=404)
+
+            # Verificar si el usuario tiene registros asociados
+            from .models import Registro
+            tiene_registros = Registro.objects.filter(usuario_registrador=usuario).exists()
+            
+            if tiene_registros:
+                # Si tiene registros, mejor desactivar en lugar de eliminar
+                usuario.estado = 'OFF'
+                usuario.save()
+                return Response({
+                    'status': 'success',
+                    'message': 'Usuario desactivado (tiene registros asociados)'
+                })
+            else:
+                # Si no tiene registros, se puede eliminar
+                nombre = usuario.nombre
+                usuario.delete()
+                return Response({
+                    'status': 'success',
+                    'message': f'Usuario {nombre} eliminado correctamente'
+                })
+
+        except Exception as e:
+            print(f"Error al eliminar usuario: {e}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+       
 class PedirCorreosView(APIView):
     authentication_classes = [OAuth2Authentication]
     permission_classes = [IsAuthenticated, TokenHasAnyScope]
@@ -949,15 +1226,15 @@ class PedirCorreosView(APIView):
 
     def post(self, request):
         try:
-            cliente_id = int(request.data.get('cliente_id'))
-            print(f"Buscando cliente con ID: {cliente_id}")
+            sociedad_id = int(request.data.get('sociedad_id'))
+            print(f"Buscando cliente con ID: {sociedad_id}")
 
             try:
-                cliente = Sociedad.objects.get(id=cliente_id)
-                print(f"Cliente encontrado: {cliente.nombre_holding}")
+                sociedad = Sociedad.objects.get(id=sociedad_id)
+                print(f"Cliente encontrado: {sociedad.razon_social}")
 
                 # Buscar todos los usuarios asociados a este cliente, incluyendo al jefe
-                usuarios = Usuario.objects.filter(cliente_id=cliente_id)
+                usuarios = Usuario.objects.filter(sociedad_id=sociedad_id)
                 print(f"Usuarios encontrados: {usuarios.count()}")
 
                 # Recopilar todos los correos únicos
@@ -991,30 +1268,12 @@ class PedirCorreosView(APIView):
             print(f"Error inesperado: {str(e)}")
             return Response({'status': 'error', 'message': 'Error interno del servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class DataUsuariosView(APIView):
-    
-    def get(self, request, id_cliente):
-        print(f"ID del jefe recibido: {id_cliente}")
-
-        usuarios_con_codigo = Usuario.objects.filter(sociedad_id=id_cliente, is_admin = True)
-        print(f"Usuarios encontrados: {usuarios_con_codigo.count()}")
-
-        if usuarios_con_codigo.exists():
-            data_usuarios = [
-                {
-                    'rut': usuario.rut,
-                    'nombre': usuario.nombre,
-                    'estado': usuario.estado,
-                    'correo': usuario.correo,
-                }
-                for usuario in usuarios_con_codigo
-            ]
-
-            return Response({'usuarios': data_usuarios})
-        else:
-            return Response({'error': 'No se encontraron usuarios para el jefe proporcionado'}, status=404)
-
-class ModificarUsuariosView(APIView):
+class ParametrosApiView(APIView):
+    """
+    Vista unificada para gestionar parámetros de tarifas.
+    GET: Obtener parámetros de una sociedad
+    PUT: Actualizar parámetros de una sociedad
+    """
     authentication_classes = [OAuth2Authentication]
     permission_classes = [IsAuthenticated, TokenHasAnyScope]
 
@@ -1029,123 +1288,64 @@ class ModificarUsuariosView(APIView):
             self.required_scopes = ['admin', 'write']
         return super().dispatch(request, *args, **kwargs)
     
-    def post(self, request):
+    def get(self, request, id_sociedad):
+        """Obtener parámetros de una sociedad"""
         try:
-            
-            data = request.data
-            print('data: ',request.data)
-            rutsON = data.get('rutsON', [])
-            rutsOFF = data.get('rutsOFF', [])
-            print(rutsON)
-            print(rutsOFF)
-            
-            for rut in rutsON:
-                print(rut)
-                usuario_on = Usuario.objects.get(rut=rut)
-                usuario_on.estado = 'ON'
-                usuario_on.save()
-
-            for rut in rutsOFF:
-                print(rut)
-                usuario_off = Usuario.objects.get(rut=rut)
-                usuario_off.estado = 'OFF'
-                usuario_off.save()
-
-            return Response({'status': 'success', 'message': 'Registro modificado exitosamente'})
-
-        except Exception as e:
-            print(e)
-            return Response({'status': 'error', 'message': str(e)})
-    
-    def put(self, request, rut):
-        try:
-            usuario = Usuario.objects.get(rut=rut)
-        except Usuario.DoesNotExist:
-            return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = UsuarioSerializer(usuario, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-
-class DataParametrosView(APIView):
-    authentication_classes = [OAuth2Authentication]
-    permission_classes = [IsAuthenticated, TokenHasAnyScope]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.required_scopes = []
-
-    def dispatch(self, request, *args, **kwargs):
-        if request.method in ['POST', 'DELETE', 'PUT']:
-            self.required_scopes = ['admin', 'write']
-        elif request.method == 'GET':
-            self.required_scopes = ['admin', 'write']
-        return super().dispatch(request, *args, **kwargs)
-    
-    def get(self, request, id_cliente):
-        try:
-            if Parametro.objects.filter(id=id_cliente).exists():
-                parametro = Parametro.objects.get(id=id_cliente)
-
+            if Parametro.objects.filter(sociedad_id=id_sociedad).exists():
+                parametro = Parametro.objects.get(sociedad_id=id_sociedad)
+                
                 datos = {
                     'monto_por_intervalo': parametro.monto_por_intervalo,
                     'intervalo_minutos': parametro.intervalo_minutos,
-                    'monto_minimo':  parametro.monto_minimo,
+                    'monto_minimo': parametro.monto_minimo,
                     'intervalo_minimo': parametro.intervalo_minimo,
                 }
-
-                return Response(datos)
+                
+                return Response(datos, status=200)
             else:
-                return Response({'error': 'No se encontraron parámetros para el cliente especificado'}, status=404)
-
+                return Response({
+                    'error': 'No se encontraron parámetros para la sociedad especificada'
+                }, status=404)
+                
         except Exception as e:
-            print(e)
+            print(f"Error en GET parametros: {e}")
             return Response({'error': str(e)}, status=400)
-
-class CambiarParametrosView(APIView):
-    authentication_classes = [OAuth2Authentication]
-    permission_classes = [IsAuthenticated, TokenHasAnyScope]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.required_scopes = []
-
-    def dispatch(self, request, *args, **kwargs):
-        if request.method in ['POST', 'DELETE', 'PUT']:
-            self.required_scopes = ['admin', 'write']
-        elif request.method == 'GET':
-            self.required_scopes = ['admin', 'write']
-        return super().dispatch(request, *args, **kwargs)
     
-    def post(self, request):
+    def put(self, request, id_sociedad):
+        """Actualizar parámetros de una sociedad"""
         try:
             data = request.data
-            print(data)
-            id_cliente = data['id']
-            nuevo_monto = data['nuevo_monto']
-            nuevo_intervalo = data['nuevo_intervalo']
-            nuevo_monto_minimo = data['nuevo_monto_minimo']
-            nuevo_tiempo_minimo = data['nuevo_intervalo_minimo']
+            print(f"Actualizando parámetros para sociedad {id_sociedad}: {data}")
             
-            if Parametro.objects.filter(cliente_id=id_cliente).exists():
-                parametro = Parametro.objects.get(cliente_id=id_cliente)
-
-                parametro.monto_por_intervalo = nuevo_monto
-                parametro.intervalo_minutos = nuevo_intervalo
-                parametro.monto_minimo = nuevo_monto_minimo
-                parametro.intervalo_minimo =  nuevo_tiempo_minimo
-                parametro.save()
-
-                return Response({'status': 'success', 'message': 'Montos actualizados exitosamente'})
-            else:
-                return Response({'status': 'error', 'message': 'No se encontraron parámetros para el cliente especificado'}, status=404)
-
+            # Validar que existan los parámetros
+            if not Parametro.objects.filter(sociedad_id=id_sociedad).exists():
+                return Response({
+                    'status': 'error',
+                    'message': 'No se encontraron parámetros para la sociedad especificada'
+                }, status=404)
+            
+            # Obtener el objeto
+            parametro = Parametro.objects.get(sociedad_id=id_sociedad)
+            
+            # Actualizar campos
+            parametro.monto_por_intervalo = data.get('monto_por_intervalo', parametro.monto_por_intervalo)
+            parametro.intervalo_minutos = data.get('intervalo_minutos', parametro.intervalo_minutos)
+            parametro.monto_minimo = data.get('monto_minimo', parametro.monto_minimo)
+            parametro.intervalo_minimo = data.get('intervalo_minimo', parametro.intervalo_minimo)
+            
+            parametro.save()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Parámetros actualizados exitosamente'
+            }, status=200)
+            
         except Exception as e:
-            print(e)
-            return Response({'status': 'error', 'message': str(e)}, status=400)
+            print(f"Error en PUT parametros: {e}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
 
 class RegistroPorFechaView(APIView):
     authentication_classes = [OAuth2Authentication]
@@ -1233,7 +1433,7 @@ class EnviarCSVView(APIView):
         end_date = datetime.strptime(formattedEndDate, '%Y-%m-%d')
         end_date = end_date + timedelta(days=1, seconds=-1)
         
-        usuarios = Usuario.objects.filter(cliente_id=id_cliente)
+        usuarios = Usuario.objects.filter(sociedad_id=id_cliente)
         
         registros = Registro.objects.filter(
             Q(hora_inicio__range=(start_date, end_date)) &
@@ -1416,9 +1616,8 @@ class ObtenerRegistrosDelDiaView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request):
-
-        codigo_cliente = request.data.get('codigo_cliente')
-        print('cliente id', codigo_cliente)
+        codigo_sociedad = request.data.get('codigo_sociedad')
+        print('cliente id', codigo_sociedad)
         
         zona_horaria_santiago = pytz.timezone('America/Santiago')
         ahora_santiago = datetime.now(zona_horaria_santiago)
@@ -1430,29 +1629,43 @@ class ObtenerRegistrosDelDiaView(APIView):
             inicio = ahora_santiago
 
         inicio = inicio.replace(hour=3, minute=0, second=0, microsecond=0)
-        cliente = Sociedad.objects.get(id=codigo_cliente)
-        usuarios_del_cliente = Usuario.objects.filter(cliente_id=cliente.id)
-        parametro = Parametro.objects.get(cliente_id=cliente.id)
+        sociedad = Sociedad.objects.get(id=codigo_sociedad)
+        usuarios_del_cliente = Usuario.objects.filter(sociedad_id=sociedad.id)
+        parametro = Parametro.objects.get(sociedad_id=sociedad.id)
         
-
         registros = Registro.objects.filter(
             hora_inicio__range=(inicio, inicio + timedelta(days=1)),
             hora_termino__isnull=True,
             usuario_registrador__in=usuarios_del_cliente
         )
+        
         parametros = {
             'intervalo_parametro': parametro.intervalo_minutos,
             'valor_parametro': parametro.monto_por_intervalo,
             'monto_minimo': parametro.monto_minimo,
             'intervalo_minimo': parametro.intervalo_minimo,
         }
-        datos = [{
-            'patente': registro.patente,
-            'hora_inicio': registro.hora_inicio.astimezone(zona_horaria_santiago).isoformat(),
-            'id': registro.id,
-            'cliente_registrado': registro.cliente_registrado,
-            'tipo':  registro.cliente_registrado.tipo if registro is not None and registro.cliente_registrado is not None else None
-        } for registro in registros]
+        
+        datos = []
+        for registro in registros:
+            # Buscar saldo pendiente de registros anteriores de esta patente
+            registro_con_saldo = Registro.objects.filter(
+                patente=registro.patente, 
+                saldo__gt=0
+            ).exclude(id=registro.id).first()
+            
+            saldo_pendiente = 0
+            if registro_con_saldo and registro_con_saldo.saldo is not None:
+                saldo_pendiente = int(registro_con_saldo.saldo)
+            
+            datos.append({
+                'patente': registro.patente,
+                'hora_inicio': registro.hora_inicio.astimezone(zona_horaria_santiago).isoformat(),
+                'id': registro.id,
+                'cliente_registrado': registro.cliente_registrado,
+                'tipo': registro.cliente_registrado.tipo if registro is not None and registro.cliente_registrado is not None else None,
+                'saldo_pendiente': saldo_pendiente  # ✅ AGREGADO
+            })
 
         return Response({'datos': datos, 'parametros': parametros})
 
@@ -1482,17 +1695,29 @@ class RegistroInicialView(APIView):
         if ClientesRegistrados.objects.filter(patente_cliente=patente).exists():
             cliente = ClientesRegistrados.objects.get(patente_cliente=patente)
             if cliente.registrar == False:
-                return Response({'error': f'El cliente no se registra, pertenece al convenio de los que pagan de forma {cliente.tipo}'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                    'error': f'El cliente no se registra, pertenece al convenio de los que pagan de forma {cliente.tipo}'
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         registro_activo = Registro.objects.filter(patente=patente, hora_termino__isnull=True).exists()
         if registro_activo:
-            return Response({'error': 'La patente sigue activa'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                'error': 'La patente sigue activa'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
         if registro_con_saldo is not None and registro_con_saldo.saldo is not None:
             saldo_pendiente = int(registro_con_saldo.saldo)
         else:   
             saldo_pendiente = 0
+            
         try:
-            registro = Registro.objects.create(patente=patente, usuario_registrador_id=usuario.id, hora_termino=None)
+            # 🔧 CORRECCIÓN: Agregar sociedad del usuario
+            registro = Registro.objects.create(
+                patente=patente, 
+                usuario_registrador_id=usuario.id,
+                sociedad_id=usuario.sociedad_id,  # ✅ AGREGAR ESTA LÍNEA
+                hora_termino=None
+            )
             return Response({
                 'mensaje': 'Entrada registrada', 
                 'id': registro.id,
@@ -1501,7 +1726,9 @@ class RegistroInicialView(APIView):
             })
         except Exception as e:
             print(e)
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class RegistroFinalView(APIView):
     def __init__(self, *args, **kwargs):
@@ -1523,7 +1750,7 @@ class RegistroFinalView(APIView):
         monto_pagado = int(data.get('monto_pagado', 0))
         usuario = Usuario.objects.get(rut=usuario_registrador)
 
-        parametro = Parametro.objects.get(cliente=usuario.cliente.id) # type: ignore
+        parametro = Parametro.objects.get(sociedad_id=usuario.sociedad.id) # type: ignore
         
         fecha_termino = timezone.now().astimezone(pytz.timezone('America/Santiago'))
         cliente_registrado = None

@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
-import 'package:parking/pages/mother_layout/administracion/modificar_usuario.dart';
-import 'package:parking/pages/mother_layout/administracion/crear_usuario.dart';
 import 'package:http/http.dart' as http;
 import 'package:parking/services/parking_service.dart';
 import 'package:parking/utils/globals.dart';
@@ -33,7 +31,7 @@ class AdminScreenState extends State<AdminScreen> {
   @override
   void initState() {
     super.initState();
-    pedirCorreos(userInfo.clienteId);
+    pedirCorreos(userInfo.sociedadId);
   }
 
   bool dateRangeSelected = false;
@@ -207,7 +205,7 @@ class AdminScreenState extends State<AdminScreen> {
             DateFormat('yyyy-MM-dd').format(selectedDateRange.start);
         formattedEndDate =
             DateFormat('yyyy-MM-dd').format(selectedDateRange.end);
-        userId = userInfo.clienteId;
+        userId = userInfo.sociedadId;
 
         _mostrarDialogoConfirmacion();
 
@@ -250,7 +248,7 @@ class AdminScreenState extends State<AdminScreen> {
             TextButton(
               child: const Text('Sí'),
               onPressed: () async {
-                await pedirCorreos(userInfo.clienteId);
+                await pedirCorreos(userInfo.sociedadId);
                 if (context.mounted) {
                   Navigator.of(context).pop();
                   _mostrarDialogoCorreos();
@@ -379,18 +377,6 @@ class AdminScreenState extends State<AdminScreen> {
           runSpacing: 20, // Espacio vertical entre los botones
           alignment: WrapAlignment.center,
           children: <Widget>[
-            _buildButton(
-                'CREAR USUARIO',
-                () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const CrearUsuario()))),
-            _buildButton(
-                'ACTIVAR/DESACTIVAR USUARIO',
-                () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const ModificarUsuario()))),
             _buildButton('FIJAR MONTOS', _fijarMontos),
             _buildButton('CONSULTAR/BORRAR REGISTROS', _modificarRegistro),
             _buildButton('CONSULTAR CSV', _consultarCSV),

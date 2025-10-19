@@ -65,7 +65,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _cargarRegistrosDelDia();
-      pedirCorreos(userInfo.clienteId);
+      pedirCorreos(userInfo.sociedadId);
       _checkPrinterConnection(); // Verificar estado inicial
     });
 
@@ -771,7 +771,8 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         'patente': patente,
         'usuario_registrador': userInfo.rut,
       });
-      loggerGlobal.d(response);
+      logger.d('usuario_registrador ${userInfo.rut}');
+      //loggerGlobal.d(response);
 
       int saldoPendiente = response['saldo_pendiente'] ?? 0;
       var vehiculo =
@@ -1426,10 +1427,10 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
   Future<void> _cargarRegistrosDelDia() async {
     _showLoadingDialog();
     try {
-      var codigoCliente = userInfo.clienteId;
+      var codigoSociedad = userInfo.sociedadId;
 
       var jsonResponse = await _apiService.post('obtener_registros_del_dia/', {
-        'codigo_cliente': codigoCliente,
+        'codigo_sociedad': codigoSociedad,
       });
 
       loggerGlobal.d(jsonResponse);
@@ -1462,11 +1463,11 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     }
   }
 
-  void pedirCorreos(int codigoJefe) async {
+  void pedirCorreos(int codigoSociedad) async {
     loggerGlobal.d('funcion llamada');
     try {
-      var responseData =
-          await _apiService.post('pedir_correos/', {'cliente_id': codigoJefe});
+      var responseData = await _apiService
+          .post('pedir_correos/', {'sociedad_id': codigoSociedad});
 
       if (responseData['correos'] != null) {
         correos = responseData['correos'];
@@ -1686,7 +1687,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                     bool success = await sendData(
                         DateFormat('yyyy-MM-dd').format(DateTime.now()),
                         DateFormat('yyyy-MM-dd').format(DateTime.now()),
-                        userInfo.clienteId,
+                        userInfo.sociedadId,
                         correosSeleccionados);
                     loggerGlobal.d(success);
                     if (success) {
@@ -1732,7 +1733,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
       var responseBody = await _apiService.post('enviar_csv/', {
         'formattedStartDate': start,
         'formattedEndDate': end,
-        'id_cliente': userInfo.clienteId,
+        'id_cliente': userInfo.sociedadId,
         'email': email,
       });
 
@@ -1851,6 +1852,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     _refreshAnimationController.reset();
     _refreshAnimationController.forward();
     _cargarRegistrosDelDia();
+    logger.d('usuario_registrador ${userInfo.rut}');
   }
 
   @override

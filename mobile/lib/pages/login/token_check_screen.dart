@@ -52,7 +52,7 @@ class TokenCheckScreenState extends State<TokenCheckScreen> {
   void _loadUserDataAndNavigateHome(Map<String, dynamic> userData) {
     // Cargar los mismos datos que en login
     userInfo.admin = userData['admin'] ?? false;
-    userInfo.clienteId = userData['cliente_id'] ?? 0;
+    userInfo.sociedadId = userData['sociedad_id'] ?? 0;
     userInfo.email = userData['correo'] ?? '';
     userInfo.superadmin = userData['superadmin'] ?? false;
     userInfo.name = userData['name'] ?? '';

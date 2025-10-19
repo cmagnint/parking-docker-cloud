@@ -24,7 +24,7 @@ class AdministrarClienteServiciosState
   Future<void> _cargarClientes() async {
     try {
       final response = await apiService
-          .get('clientes_servicios/?cliente_id=${userInfo.clienteId}');
+          .get('clientes_servicios/?cliente_id=${userInfo.sociedadId}');
       setState(() {
         clientes = List<Map<String, dynamic>>.from(response['data']);
       });
@@ -209,7 +209,7 @@ class ClienteDialogState extends State<ClienteDialog> {
                 'rut': _rutController.text,
                 'celular': _celularController.text,
                 'correo': _correoController.text,
-                'cliente': userInfo.clienteId,
+                'cliente': userInfo.sociedadId,
               });
               Navigator.of(context).pop();
             }

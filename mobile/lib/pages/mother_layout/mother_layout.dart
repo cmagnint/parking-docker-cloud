@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:parking/pages/mother_layout/administracion/crear_usuario.dart';
+import 'package:parking/pages/mother_layout/administracion/administrar_usuarios.dart';
 import 'package:parking/pages/mother_layout/administracion/parametros.dart';
 import 'package:parking/pages/mother_layout/administracion/modificar_registro.dart';
-import 'package:parking/pages/mother_layout/administracion/modificar_usuario.dart';
 import 'package:parking/pages/mother_layout/estacionamiento/crear_registro_cliente.dart';
 import 'package:parking/pages/mother_layout/estacionamiento/historial.dart';
 import 'package:parking/pages/mother_layout/estacionamiento/ingreso.dart';
@@ -35,8 +34,8 @@ class MotherLayoutState extends State<MotherLayout>
     const AdministrarCliente(), // _selectedIndex = 1 CREAR CLIENTES
     const SuperRegistro(), // _selectedIndex = 2 REGISTRO SUPERADMIN
     //ADMINISTRACION
-    const CrearUsuario(), // _selectedIndex = 3 CREAR USUARIO
-    const ModificarUsuario(), // _selectedIndex = 4 MODIFICAR USUARIO
+    const AdministrarUsuarios(), // _selectedIndex = 3 CREAR USUARIO
+    const AdministrarUsuarios(), // _selectedIndex = 4 MODIFICAR USUARIO
     const ParametrosScreen(), // _selectedIndex = 5 FIJAR MONTOS
     const ModificarRegistro(), // _selectedIndex = 6 MODIFICAR REGISTRO
     //ESTACIONAMIENTO
@@ -380,7 +379,7 @@ class MotherLayoutState extends State<MotherLayout>
                       children: <Widget>[
                         _buildDrawerTile(
                           icon: Icons.person_add,
-                          title: 'Crear Usuario',
+                          title: 'Administrar Usuarios',
                           onTap: () {
                             setState(() {
                               _selectedIndex = 3;
@@ -390,19 +389,8 @@ class MotherLayoutState extends State<MotherLayout>
                           isSelected: _selectedIndex == 3,
                         ),
                         _buildDrawerTile(
-                          icon: Icons.person_4,
-                          title: 'Modificar Usuario',
-                          onTap: () {
-                            setState(() {
-                              _selectedIndex = 4;
-                            });
-                            Navigator.pop(context);
-                          },
-                          isSelected: _selectedIndex == 4,
-                        ),
-                        _buildDrawerTile(
                           icon: Icons.attach_money,
-                          title: 'Fijar Montos',
+                          title: 'Parametros',
                           onTap: () {
                             setState(() {
                               _selectedIndex = 5;

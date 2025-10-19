@@ -310,7 +310,7 @@ class LoginScreenState extends State<LoginScreen>
               key: 'authToken', value: responseData['token']);
 
           userInfo.admin = responseData['admin'] ?? false;
-          userInfo.clienteId = responseData['cliente_id'] ?? 0;
+          userInfo.sociedadId = responseData['sociedad_id'] ?? 0;
           userInfo.email = responseData['correo'] ?? '';
           userInfo.superadmin = responseData['superadmin'] ?? false;
           userInfo.name = responseData['name'] ?? '';

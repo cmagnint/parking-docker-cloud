@@ -28,7 +28,7 @@ class AgendarServicioPageState extends State<AgendarServicioPage> {
   void initState() {
     super.initState();
     _cargarServiciosAgendados();
-    pedirCorreos(userInfo.clienteId);
+    pedirCorreos(userInfo.sociedadId);
   }
 
   Future<void> _cargarServiciosAgendados() async {
@@ -236,7 +236,7 @@ class AgendarServicioPageState extends State<AgendarServicioPage> {
                     bool success = await sendData(
                         DateFormat('yyyy-MM-dd').format(DateTime.now()),
                         DateFormat('yyyy-MM-dd').format(DateTime.now()),
-                        userInfo.clienteId,
+                        userInfo.sociedadId,
                         correosSeleccionados);
                     loggerGlobal.d(success);
                     if (success) {
@@ -561,7 +561,7 @@ class ServicioDialogState extends State<ServicioDialog> {
       _showLoadingDialog();
 
       final nuevoServicio = {
-        'cliente_holding': userInfo.clienteId,
+        'cliente_holding': userInfo.sociedadId,
         'cliente_servicio': clienteSeleccionado!['id'],
         'servicio': servicioSeleccionado!['id'],
         'tipo_vehiculo': tipoVehiculoSeleccionado!['id'],
@@ -660,7 +660,7 @@ class ServicioDialogState extends State<ServicioDialog> {
   Future<void> _cargarServicios() async {
     try {
       final response =
-          await apiService.get('servicios/?cliente_id=${userInfo.clienteId}');
+          await apiService.get('servicios/?cliente_id=${userInfo.sociedadId}');
       setState(() {
         serviciosDisponibles =
             List<Map<String, dynamic>>.from(response['data']);
@@ -677,7 +677,7 @@ class ServicioDialogState extends State<ServicioDialog> {
   Future<void> _cargarClientes() async {
     try {
       final response = await apiService
-          .get('clientes_servicios/?cliente_id=${userInfo.clienteId}');
+          .get('clientes_servicios/?cliente_id=${userInfo.sociedadId}');
       setState(() {
         clientesDisponibles = List<Map<String, dynamic>>.from(response['data']);
         clientesDisponibles.sort((a, b) => a['nombre'].compareTo(b['nombre']));
@@ -699,12 +699,12 @@ class ServicioDialogState extends State<ServicioDialog> {
 
   void _inicializarCampos() {
     if (widget.servicio != null) {
-      String clienteId = widget.servicio!['cliente_servicio'].toString();
+      String sociedadId = widget.servicio!['cliente_servicio'].toString();
       String servicioId = widget.servicio!['servicio'].toString();
       String tipoVehiculoId = widget.servicio!['tipo_vehiculo'].toString();
 
       clienteSeleccionado =
-          _findMatchingItem(clientesDisponibles, {'id': clienteId});
+          _findMatchingItem(clientesDisponibles, {'id': sociedadId});
       servicioSeleccionado =
           _findMatchingItem(serviciosDisponibles, {'id': servicioId});
       tipoVehiculoSeleccionado =

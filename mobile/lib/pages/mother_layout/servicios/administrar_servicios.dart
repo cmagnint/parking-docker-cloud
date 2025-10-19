@@ -22,7 +22,7 @@ class AdministrarServicioPageState extends State<AdministrarServicioPage> {
   Future<void> _cargarServicios() async {
     try {
       final response =
-          await apiService.get('servicios/?cliente_id=${userInfo.clienteId}');
+          await apiService.get('servicios/?cliente_id=${userInfo.sociedadId}');
       setState(() {
         servicios = List<Map<String, dynamic>>.from(response['data']);
       });
@@ -223,7 +223,7 @@ class ServicioDialogState extends State<ServicioDialog> {
                 'valor_servicio': _valorServicio,
                 'duracion_servicio':
                     '${_duracionServicio.inHours.toString().padLeft(2, '0')}:${(_duracionServicio.inMinutes % 60).toString().padLeft(2, '0')}:00',
-                'cliente': userInfo.clienteId,
+                'cliente': userInfo.sociedadId,
               });
               Navigator.of(context).pop();
             }

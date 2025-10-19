@@ -75,7 +75,7 @@ class HistorialScreenState extends State<HistorialScreen> {
 
     // Verificar si el usuario es administrador y enviar el ID del cliente
     if (userInfo.admin) {
-      params['id_cliente'] = userInfo.clienteId.toString();
+      params['id_cliente'] = userInfo.sociedadId.toString();
     } else {
       // Si no es administrador, enviar el rut del usuario actual
       params['usuario_registrador'] = userInfo.rut.toString();
