@@ -10,14 +10,15 @@ urlpatterns = [
     #=========================================================================================
     path('administrar_sociedad/', views.AdministrarSociedadView.as_view(), name='administrar_sociedad_list'),
     path('administrar_sociedad/<int:sociedad_id>/', views.AdministrarSociedadView.as_view(), name='administrar_sociedad_detail'),
-    path('consultar_registros_sociedad/', views.ConsultarRegistrosSociedadView.as_view(), name='consultar_registros_sociedad'),  # NUEVA
+    path('consultar_registros_sociedad/', views.ConsultarRegistrosSociedadSuperAdminView.as_view(), name='consultar_registros_sociedad'),  # NUEVA
 
     #=========================================================================================
     #================================ LOGIN =============================================
     #=========================================================================================
     path('login/',  views.LoginView.as_view(), name='login'),
     path('check_token/', views.CheckTokenView.as_view(), name='check_token'),  
-    
+    path('gestion_registros/', views.GestionRegistrosView.as_view(), name='gestion_registros'),  # ✅ UNA SOLA URL
+
     path('registro_inicial/',  views.RegistroInicialView.as_view(), name='registro_inicial'),
     path('registro_final/',  views.RegistroFinalView.as_view(), name='registro_final'),
     path('obtener_registros_del_dia/', views.ObtenerRegistrosDelDiaView.as_view(), name='obtener_registros_del_dia'),

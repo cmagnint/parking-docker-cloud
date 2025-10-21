@@ -83,8 +83,8 @@ DATABASES = {
         'NAME': 'parking',
         'USER': 'admin',
         'PASSWORD': '19731223zE',
-        'HOST': 'db',      
-        'PORT': '5432',    
+        'HOST': 'localhost',      
+        'PORT': '5434',    
     }
 }
 

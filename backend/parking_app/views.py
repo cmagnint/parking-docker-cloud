@@ -241,7 +241,7 @@ class CambiarContrasenaView(APIView):
 #|---------------------------SUPERADMINISTRACION-------------------------------------|
 #|===================================================================================|
 
-class ConsultarRegistrosSociedadView(APIView):
+class ConsultarRegistrosSociedadSuperAdminView(APIView):
     """
     Vista para consultar registros de una sociedad por rango de fechas
     GET: Obtener resumen y detalle de registros
@@ -1469,6 +1469,280 @@ class ParametrosApiView(APIView):
                 'message': str(e)
             }, status=400)
 
+class GestionRegistrosView(APIView):
+    """
+    Vista unificada para gestionar registros de una sociedad
+    GET: Obtener registros por rango de fechas
+    PUT: Modificar un registro específico
+    DELETE: Eliminar múltiples registros
+    """
+    authentication_classes = [OAuth2Authentication]
+    permission_classes = [IsAuthenticated, TokenHasAnyScope]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.required_scopes = []
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.method in ['GET', 'PUT', 'DELETE']:
+            self.required_scopes = ['admin', 'write']
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        """
+        GET: Obtener registros de una sociedad por rango de fechas
+        
+        Query params:
+        - id_sociedad: ID de la sociedad
+        - fecha_inicio: Fecha inicio en formato DD/MM/YYYY
+        - fecha_fin: Fecha fin en formato DD/MM/YYYY
+        """
+        try:
+            id_sociedad = request.query_params.get('id_sociedad')
+            fecha_inicio_str = request.query_params.get('fecha_inicio')
+            fecha_fin_str = request.query_params.get('fecha_fin')
+
+            if not all([id_sociedad, fecha_inicio_str, fecha_fin_str]):
+                return Response({
+                    'status': 'error',
+                    'message': 'Faltan parámetros requeridos: id_sociedad, fecha_inicio, fecha_fin'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verificar que la sociedad existe
+            try:
+                sociedad = Sociedad.objects.get(id=id_sociedad)
+            except Sociedad.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': f'Sociedad con ID {id_sociedad} no encontrada'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Parsear fechas
+            try:
+                fecha_inicio = datetime.strptime(fecha_inicio_str, '%d/%m/%Y')
+                fecha_fin = datetime.strptime(fecha_fin_str, '%d/%m/%Y')
+                fecha_fin = fecha_fin.replace(hour=23, minute=59, second=59)
+            except ValueError:
+                return Response({
+                    'status': 'error',
+                    'message': 'Formato de fecha inválido. Use DD/MM/YYYY'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validar que fecha_inicio sea menor o igual a fecha_fin
+            if fecha_inicio > fecha_fin:
+                return Response({
+                    'status': 'error',
+                    'message': 'La fecha de inicio debe ser menor o igual a la fecha de fin'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Obtener usuarios de la sociedad
+            usuarios_del_cliente = Usuario.objects.filter(sociedad=sociedad)
+
+            # Obtener registros del rango de fechas
+            registros = Registro.objects.filter(
+                usuario_registrador__in=usuarios_del_cliente,
+                hora_inicio__gte=fecha_inicio,
+                hora_inicio__lte=fecha_fin
+            ).select_related('usuario_registrador').order_by('-hora_inicio')
+
+            santiago_tz = pytz.timezone('America/Santiago')
+            
+            registros_data = []
+            for registro in registros:
+                registros_data.append({
+                    'id': registro.id,
+                    'patente': registro.patente,
+                    'hora_inicio': registro.hora_inicio.astimezone(santiago_tz).strftime('%d/%m/%Y %H:%M'),
+                    'hora_termino': registro.hora_termino.astimezone(santiago_tz).strftime('%d/%m/%Y %H:%M') if registro.hora_termino else None,
+                    'tarifa': int(registro.tarifa) if registro.tarifa is not None else 0,
+                    'cancelado': int(registro.cancelado) if registro.cancelado is not None else 0,
+                    'saldo': int(registro.saldo) if registro.saldo is not None else 0,
+                    'usuario_registrador': registro.usuario_registrador.rut,
+                    'nombre_trabajador': registro.usuario_registrador.nombre
+                })
+            
+            return Response({
+                'status': 'success',
+                'registros': registros_data,
+                'total_registros': len(registros_data)
+            })
+            
+        except Exception as e:
+            print(f"Error en GestionRegistrosView GET: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'status': 'error',
+                'message': f'Error al obtener registros: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def put(self, request):
+        """
+        PUT: Modificar un registro específico
+        
+        Body params:
+        - registro_id: ID del registro a modificar (requerido)
+        - patente: Nueva patente (opcional)
+        - hora_inicio: Nueva hora de inicio en formato DD/MM/YYYY HH:MM (opcional)
+        - hora_termino: Nueva hora de término en formato DD/MM/YYYY HH:MM (opcional)
+        - tarifa: Nueva tarifa (opcional)
+        - cancelado: Nuevo monto cancelado (opcional)
+        - saldo: Nuevo saldo (opcional)
+        """
+        try:
+            data = request.data
+            registro_id = data.get('registro_id')
+
+            if not registro_id:
+                return Response({
+                    'status': 'error',
+                    'message': 'El campo registro_id es requerido'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Buscar el registro
+            try:
+                registro = Registro.objects.get(id=registro_id)
+            except Registro.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': f'Registro con ID {registro_id} no encontrado'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            campos_modificados = []
+            santiago_tz = pytz.timezone('America/Santiago')
+
+            # Modificar patente si se proporciona
+            if 'patente' in data and data['patente']:
+                registro.patente = data['patente'].upper()
+                campos_modificados.append('patente')
+
+            # Modificar hora_inicio si se proporciona
+            if 'hora_inicio' in data and data['hora_inicio']:
+                try:
+                    hora_inicio = datetime.strptime(data['hora_inicio'], '%d/%m/%Y %H:%M')
+                    hora_inicio = santiago_tz.localize(hora_inicio)
+                    registro.hora_inicio = hora_inicio
+                    campos_modificados.append('hora_inicio')
+                except ValueError:
+                    return Response({
+                        'status': 'error',
+                        'message': 'Formato de hora_inicio inválido. Use DD/MM/YYYY HH:MM'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Modificar hora_termino si se proporciona
+            if 'hora_termino' in data and data['hora_termino']:
+                try:
+                    hora_termino = datetime.strptime(data['hora_termino'], '%d/%m/%Y %H:%MM')
+                    hora_termino = santiago_tz.localize(hora_termino)
+                    registro.hora_termino = hora_termino
+                    campos_modificados.append('hora_termino')
+                except ValueError:
+                    return Response({
+                        'status': 'error',
+                        'message': 'Formato de hora_termino inválido. Use DD/MM/YYYY HH:MM'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Modificar tarifa si se proporciona
+            if 'tarifa' in data:
+                try:
+                    registro.tarifa = float(data['tarifa'])
+                    campos_modificados.append('tarifa')
+                except (ValueError, TypeError):
+                    return Response({
+                        'status': 'error',
+                        'message': 'El valor de tarifa debe ser un número válido'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Modificar cancelado si se proporciona
+            if 'cancelado' in data:
+                try:
+                    registro.cancelado = float(data['cancelado'])
+                    campos_modificados.append('cancelado')
+                except (ValueError, TypeError):
+                    return Response({
+                        'status': 'error',
+                        'message': 'El valor de cancelado debe ser un número válido'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Modificar saldo si se proporciona
+            if 'saldo' in data:
+                try:
+                    registro.saldo = float(data['saldo'])
+                    campos_modificados.append('saldo')
+                except (ValueError, TypeError):
+                    return Response({
+                        'status': 'error',
+                        'message': 'El valor de saldo debe ser un número válido'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Guardar cambios
+            if campos_modificados:
+                registro.save()
+                
+                return Response({
+                    'status': 'success',
+                    'message': 'Registro modificado exitosamente',
+                    'campos_modificados': campos_modificados,
+                    'registro': {
+                        'id': registro.id,
+                        'patente': registro.patente,
+                        'hora_inicio': registro.hora_inicio.astimezone(santiago_tz).strftime('%d/%m/%Y %H:%M'),
+                        'hora_termino': registro.hora_termino.astimezone(santiago_tz).strftime('%d/%m/%Y %H:%M') if registro.hora_termino else None,
+                        'tarifa': int(registro.tarifa) if registro.tarifa else 0,
+                        'cancelado': int(registro.cancelado) if registro.cancelado else 0,
+                        'saldo': int(registro.saldo) if registro.saldo else 0
+                    }
+                })
+            else:
+                return Response({
+                    'status': 'info',
+                    'message': 'No se realizaron modificaciones'
+                })
+
+        except Exception as e:
+            print(f"Error en GestionRegistrosView PUT: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'status': 'error',
+                'message': f'Error al modificar registro: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request):
+        """
+        DELETE: Eliminar múltiples registros
+        
+        Body params:
+        - ids: Lista de IDs de registros a eliminar
+        """
+        try:
+            data = request.data
+            ids_para_borrar = data.get('ids', [])
+
+            if not ids_para_borrar or not isinstance(ids_para_borrar, list):
+                return Response({
+                    'status': 'error',
+                    'message': 'Debe proporcionar una lista de IDs a eliminar'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Eliminar los registros
+            registros_eliminados = Registro.objects.filter(id__in=ids_para_borrar).delete()
+
+            return Response({
+                'status': 'success',
+                'message': f'{registros_eliminados[0]} registro(s) eliminado(s) exitosamente',
+                'cantidad_eliminada': registros_eliminados[0]
+            })
+
+        except Exception as e:
+            print(f"Error en GestionRegistrosView DELETE: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'status': 'error',
+                'message': f'Error al eliminar registros: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 class RegistroPorFechaView(APIView):
     authentication_classes = [OAuth2Authentication]
     permission_classes = [IsAuthenticated, TokenHasAnyScope]
@@ -1715,7 +1989,6 @@ class EnviarCSVServiciosView(APIView):
             email_message.send(fail_silently=False)
         
         return Response({'status': 'success', 'message': 'CSV de servicios enviado exitosamente a todos los correos.'})
-    
     
 #-----------------------------------------------------------------------------
 
