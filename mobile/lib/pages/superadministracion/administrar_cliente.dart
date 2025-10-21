@@ -1998,7 +1998,7 @@ class _DialogoUsuariosClienteState extends State<_DialogoUsuariosCliente> {
 
     try {
       final data =
-          await widget.apiService.get('data_usuarios/${widget.cliente['id']}/');
+          await widget.apiService.get('usuarios/${widget.cliente['id']}/');
 
       setState(() {
         _usuarios = data['usuarios'] ?? [];

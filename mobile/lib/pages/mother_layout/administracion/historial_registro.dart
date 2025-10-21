@@ -3,14 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:parking/services/parking_service.dart';
 import 'package:parking/utils/globals.dart';
 
-class ModificarRegistro extends StatefulWidget {
-  const ModificarRegistro({super.key});
+class HistorialRegistros extends StatefulWidget {
+  const HistorialRegistros({super.key});
 
   @override
-  ModificarRegistroState createState() => ModificarRegistroState();
+  HistorialRegistrosState createState() => HistorialRegistrosState();
 }
 
-class ModificarRegistroState extends State<ModificarRegistro> {
+class HistorialRegistrosState extends State<HistorialRegistros> {
   DateTime? fechaSeleccionada;
   List<dynamic> registros = [];
   Set<int> idsParaEliminar = {};
@@ -129,7 +129,7 @@ class ModificarRegistroState extends State<ModificarRegistro> {
                     bottom: 85, right: 4, left: 4, top: 10),
                 child: ElevatedButton(
                   onPressed:
-                      idsParaEliminar.isNotEmpty ? _modificarRegistro : null,
+                      idsParaEliminar.isNotEmpty ? _HistorialRegistros : null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 25, vertical: 25),
@@ -201,7 +201,7 @@ class ModificarRegistroState extends State<ModificarRegistro> {
     }
   }
 
-  Future<void> _modificarRegistro() async {
+  Future<void> _HistorialRegistros() async {
     try {
       var response = await apiService.post('borrar_registros/', {
         'ids': idsParaEliminar.toList(),

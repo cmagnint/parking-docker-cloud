@@ -10,7 +10,8 @@ urlpatterns = [
     #=========================================================================================
     path('administrar_sociedad/', views.AdministrarSociedadView.as_view(), name='administrar_sociedad_list'),
     path('administrar_sociedad/<int:sociedad_id>/', views.AdministrarSociedadView.as_view(), name='administrar_sociedad_detail'),
-   
+    path('consultar_registros_sociedad/', views.ConsultarRegistrosSociedadView.as_view(), name='consultar_registros_sociedad'),  # NUEVA
+
     #=========================================================================================
     #================================ LOGIN =============================================
     #=========================================================================================

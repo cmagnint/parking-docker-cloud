@@ -8,10 +8,10 @@ import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:parking/services/parking_service.dart';
 import 'package:parking/services/printer_background_service.dart';
-import 'package:parking/services/printer_service.dart'; // Nueva importación
+import 'package:parking/services/printer_service.dart';
 import 'package:parking/utils/globals.dart';
 import 'package:lottie/lottie.dart';
-import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart'; // Nueva importación
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 
 class RegistroVehiculoScreen extends StatefulWidget {
   const RegistroVehiculoScreen({super.key});
@@ -44,18 +44,14 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
   bool _isProcessing = false;
   final bool _isLoading = false;
   late AnimationController _refreshAnimationController;
-  bool _isTestingPrinter = false;
   StreamSubscription<bool>? _connectionSubscription;
 
-  // Variables para la impresora
   bool _printerConnected = false;
   List<BluetoothInfo> _availablePrinters = [];
 
   @override
   void initState() {
     super.initState();
-
-    // Agregar observer del ciclo de vida
     WidgetsBinding.instance.addObserver(this);
 
     _refreshAnimationController = AnimationController(
@@ -66,19 +62,17 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _cargarRegistrosDelDia();
       pedirCorreos(userInfo.sociedadId);
-      _checkPrinterConnection(); // Verificar estado inicial
+      _checkPrinterConnection();
     });
 
     _busquedaController.addListener(_filtrarVehiculos);
 
-    // Escuchar cambios de conexión del Stream
     _connectionSubscription =
         PrinterService.connectionStateStream.listen((connected) {
       if (mounted) {
         setState(() {
           _printerConnected = connected;
         });
-
         loggerGlobal
             .d('Estado de conexión actualizado desde Stream: $connected');
       }
@@ -87,7 +81,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this); // Remover observer
+    WidgetsBinding.instance.removeObserver(this);
     _connectionSubscription?.cancel();
     _refreshAnimationController.dispose();
     _busquedaController.removeListener(_filtrarVehiculos);
@@ -107,190 +101,17 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     }
   }
 
-  //--------------TESTING----------------------------------------------------------
-  Future<void> _testPrinter() async {
-    if (!_printerConnected) {
-      _mostrarDialogoError('Primero conecta una impresora');
-      return;
-    }
-
-    setState(() {
-      _isTestingPrinter = true;
-    });
-
-    try {
-      _showLoadingDialog(message: 'Imprimiendo ticket de prueba...');
-
-      // Usar printTestTicket directamente
-      bool success = await PrinterService.printTestTicket();
-
-      if (mounted) {
-        Navigator.of(context).pop(); // Cerrar loading
-
-        if (success) {
-          _showTestResultDialog(
-              'Ticket impreso correctamente.\nRevisa la impresora.');
-        } else {
-          _showTestResultDialog('Error al imprimir.\nVerifica la conexión.');
-        }
-      }
-    } catch (e) {
-      loggerGlobal.e('Error al probar impresora: $e');
-      if (mounted) {
-        Navigator.of(context).pop(); // Cerrar loading
-        _mostrarDialogoError('Error al imprimir: $e');
-      }
-    } finally {
-      setState(() {
-        _isTestingPrinter = false;
-      });
-    }
-  }
-
-  void _showTestResultDialog(String result) {
-    bool isSuccess = result.contains('OK ✓');
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color:
-                      (isSuccess ? Colors.green : Colors.red).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  isSuccess ? Icons.check_circle : Icons.error,
-                  color: isSuccess ? Colors.green : Colors.red,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Resultado del Test',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF2F4858),
-                ),
-              ),
-            ],
-          ),
-          content: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2F4858).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  result,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: isSuccess ? Colors.green : Colors.red,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                if (!isSuccess) ...[
-                  const Text(
-                    'Sugerencias:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2F4858),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '• Verifica que haya papel térmico\n'
-                    '• Asegúrate que el papel esté colocado correctamente\n'
-                    '• Limpia el cabezal de impresión\n'
-                    '• Reinicia la impresora',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF2F4858),
-                    ),
-                  ),
-                ],
-                if (isSuccess) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    '¡La impresora está funcionando correctamente!',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF2F4858),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            if (!isSuccess)
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _testPrinter(); // Intentar de nuevo
-                },
-                child: const Text(
-                  'Reintentar',
-                  style: TextStyle(
-                    color: Color(0xFF00A085),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    isSuccess ? Colors.green : const Color(0xFF2F4858),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'Aceptar',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Verificar conexión de impresora
   Future<void> _checkPrinterConnection() async {
     try {
-      // Verificar estado real de la conexión
       bool realConnectionStatus = await PrinterService.checkConnection();
-
-      // Verificar si el servicio de fondo está corriendo
       bool serviceRunning = PrinterBackgroundService.isRunning;
 
       loggerGlobal.d('Estado real de conexión: $realConnectionStatus');
       loggerGlobal.d('Servicio corriendo: $serviceRunning');
 
-      // Si hay discrepancia, sincronizar
       if (realConnectionStatus &&
           !serviceRunning &&
           PrinterService.connectedPrinterName != null) {
-        // Reconectar el servicio de fondo si la conexión Bluetooth existe
         await PrinterBackgroundService.startService(
             PrinterService.connectedPrinterName ?? 'Impresora Térmica');
         loggerGlobal.d('Servicio de fondo reiniciado');
@@ -309,15 +130,22 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     }
   }
 
-  // Buscar impresoras disponibles
   Future<void> _searchPrinters() async {
     try {
       _showLoadingDialog(message: 'Buscando impresoras...');
+
+      // Crear un Future con timeout de 60 segundos
       List<BluetoothInfo> printers =
-          await PrinterService.getAvailablePrinters();
+          await PrinterService.getAvailablePrinters().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          // Si se agota el tiempo, retornar lista vacía
+          return <BluetoothInfo>[];
+        },
+      );
 
       if (mounted) {
-        Navigator.of(context).pop(); // Cerrar loading
+        Navigator.of(context).pop();
 
         if (printers.isNotEmpty) {
           setState(() {
@@ -326,18 +154,17 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
           _showPrinterSelectionDialog();
         } else {
           _mostrarDialogoError(
-              'No se encontraron impresoras compatibles. Asegúrate de que la impresora esté encendida y en modo de emparejamiento.');
+              'No se encontraron impresoras.\n\nAsegúrate de que:\n• La impresora esté encendida\n• Esté en modo de emparejamiento\n• El Bluetooth esté activo\n• La impresora esté cerca del dispositivo');
         }
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // Cerrar loading
+        Navigator.of(context).pop();
         _mostrarDialogoError('Error al buscar impresoras: $e');
       }
     }
   }
 
-  // Mostrar diálogo de selección de impresora
   void _showPrinterSelectionDialog() {
     showDialog(
       context: context,
@@ -416,7 +243,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     );
   }
 
-  // Conectar a impresora
   Future<void> _connectToPrinter(String macAddress, String printerName) async {
     try {
       _showLoadingDialog(message: 'Conectando a impresora...');
@@ -427,13 +253,10 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
       );
 
       if (mounted) {
-        Navigator.of(context).pop(); // Cerrar loading
+        Navigator.of(context).pop();
 
         if (connected) {
-          // El setState se maneja automáticamente por el Stream
           _mostrarDialogoExito('Impresora conectada exitosamente');
-
-          // Verificar que el servicio esté corriendo
           await Future.delayed(const Duration(milliseconds: 500));
           await _checkPrinterConnection();
         } else {
@@ -448,7 +271,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     }
   }
 
-  // Desconectar impresora
   Future<void> _disconnectPrinter() async {
     try {
       _showLoadingDialog(message: 'Desconectando impresora...');
@@ -457,7 +279,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
 
       if (mounted) {
         Navigator.of(context).pop();
-        // El setState se maneja automáticamente por el Stream
         _mostrarDialogoExito('Impresora desconectada');
       }
     } catch (e) {
@@ -468,15 +289,14 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     }
   }
 
-  // Widget del indicador de impresora
   Widget _buildPrinterIndicator() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: _printerConnected
-            ? Colors.green.withOpacity(0.1)
-            : Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
+            ? Colors.green.withOpacity(0.15)
+            : Colors.red.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _printerConnected ? Colors.green : Colors.red,
           width: 1,
@@ -488,15 +308,15 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
           Icon(
             _printerConnected ? Icons.print : Icons.print_disabled,
             color: _printerConnected ? Colors.green : Colors.red,
-            size: 16,
+            size: 14,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 3),
           Text(
-            _printerConnected ? 'Conectada' : 'Desconectada',
+            _printerConnected ? 'ON' : 'OFF',
             style: TextStyle(
               color: _printerConnected ? Colors.green : Colors.red,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
             ),
           ),
         ],
@@ -504,7 +324,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     );
   }
 
-  // Widgets modernos (mantener los existentes)
   Widget _buildModernTextField({
     required TextEditingController controller,
     required String label,
@@ -512,14 +331,14 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     List<TextInputFormatter>? inputFormatters,
   }) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -527,7 +346,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         controller: controller,
         inputFormatters: inputFormatters,
         style: const TextStyle(
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: FontWeight.w600,
           color: Color(0xFF2F4858),
         ),
@@ -535,37 +354,37 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
           labelText: label,
           labelStyle: TextStyle(
             color: const Color(0xFF2F4858).withOpacity(0.7),
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
           prefixIcon: Icon(
             icon,
             color: const Color(0xFF00A085),
-            size: 22,
+            size: 20,
           ),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(
-              color: const Color(0xFF2F4858).withOpacity(0.2),
+              color: const Color(0xFF2F4858).withOpacity(0.15),
               width: 1,
             ),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(
               color: Color(0xFF00B894),
               width: 2,
             ),
           ),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
+            horizontal: 16,
+            vertical: 12,
           ),
         ),
       ),
@@ -583,12 +402,12 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
   }) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: backgroundColor.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: backgroundColor.withOpacity(0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -596,8 +415,8 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         onPressed: onPressed,
         icon: isLoading
             ? SizedBox(
-                width: 20,
-                height: 20,
+                width: 16,
+                height: 16,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(textColor),
@@ -606,23 +425,23 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
             : Icon(
                 icon ?? Icons.check,
                 color: textColor,
-                size: 20,
+                size: 18,
               ),
         label: Text(
           text,
           style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: fontSize ?? 14,
+            fontWeight: FontWeight.w700,
+            fontSize: fontSize ?? 13,
             color: textColor,
-            letterSpacing: 0.5,
+            letterSpacing: 0.3,
           ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: backgroundColor,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
       ),
@@ -631,108 +450,110 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
 
   Widget _buildVehicleCard(Vehiculo vehiculo, int index) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
       child: Card(
-        elevation: 4,
+        elevation: 2,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             gradient: LinearGradient(
               colors: [
                 Colors.white,
-                const Color(0xFF00B894).withOpacity(0.05),
+                const Color(0xFF00B894).withOpacity(0.03),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             leading: Container(
-              width: 50,
-              height: 50,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF00B894), Color(0xFF00A085)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(25),
+                borderRadius: BorderRadius.circular(21),
               ),
               child: const Icon(
                 Icons.directions_car,
                 color: Colors.white,
-                size: 24,
+                size: 22,
               ),
             ),
             title: Text(
               vehiculo.patente,
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
-                fontSize: 18,
+                fontSize: 16,
                 color: Color(0xFF2F4858),
               ),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     Icon(
                       Icons.schedule,
-                      size: 16,
+                      size: 14,
                       color: const Color(0xFF2F4858).withOpacity(0.7),
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Entrada: ${DateFormat('HH:mm').format(vehiculo.horaEntrada)}',
+                      '${DateFormat('HH:mm').format(vehiculo.horaEntrada)}',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
+                        fontSize: 13,
                         color: const Color(0xFF2F4858).withOpacity(0.8),
                       ),
                     ),
+                    if (vehiculo.saldoPendiente > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.warning,
+                              size: 12,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '\$${vehiculo.saldoPendiente}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.red,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                if (vehiculo.saldoPendiente > 0) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.warning,
-                          size: 16,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Saldo: \$${vehiculo.saldoPendiente}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
             trailing: Icon(
               Icons.arrow_forward_ios,
               color: const Color(0xFF00A085),
-              size: 20,
+              size: 16,
             ),
             onTap: () => _mostrarDialogoSalida(vehiculo),
           ),
@@ -772,7 +593,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         'usuario_registrador': userInfo.rut,
       });
       logger.d('usuario_registrador ${userInfo.rut}');
-      //loggerGlobal.d(response);
 
       int saldoPendiente = response['saldo_pendiente'] ?? 0;
       var vehiculo =
@@ -783,7 +603,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         _filtrarVehiculos();
       });
 
-      // Imprimir ticket de entrada si la impresora está conectada
       if (_printerConnected) {
         try {
           bool printed = await PrinterService.printEntryTicket(
@@ -857,7 +676,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
 
       loggerGlobal.d(data);
 
-      // Imprimir ticket de salida si la impresora está conectada
       if (_printerConnected) {
         try {
           bool printed = await PrinterService.printExitTicket(
@@ -888,7 +706,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     }
   }
 
-  // Resto de métodos (mantener todos los existentes)...
   void _mostrarDialogoSaldoPendiente(int saldo) {
     showDialog(
       context: context,
@@ -1162,14 +979,14 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                       _buildInfoRow('TIEMPO ESTACIONADO:',
                           '$minutosTranscurridos MINUTOS'),
                       _buildInfoRow(
-                          'MONTO A PAGAR:', '\$${monto.toStringAsFixed(0)}'),
+                          'MONTO A PAGAR:', '\${monto.toStringAsFixed(0)}'),
                       if (vehiculo.saldoPendiente > 0)
                         _buildInfoRow('SALDO PENDIENTE:',
-                            '\$${vehiculo.saldoPendiente.toStringAsFixed(0)}',
+                            '\${vehiculo.saldoPendiente.toStringAsFixed(0)}',
                             isWarning: true),
                       const Divider(thickness: 2),
                       _buildInfoRow('TOTAL A PAGAR:',
-                          '\$${totalAPagar.toStringAsFixed(0)}',
+                          '\${totalAPagar.toStringAsFixed(0)}',
                           isTotal: true),
                       const SizedBox(height: 16),
                       if (vehiculo.saldoPendiente == 0)
@@ -1336,12 +1153,12 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildResultRow('Tarifa:', '\$${tarifa.toStringAsFixed(0)}'),
+                _buildResultRow('Tarifa:', '\${tarifa.toStringAsFixed(0)}'),
                 _buildResultRow(
-                    'Saldo Anterior:', '\$${saldoAnterior.toStringAsFixed(0)}'),
+                    'Saldo Anterior:', '\${saldoAnterior.toStringAsFixed(0)}'),
                 const Divider(),
                 _buildResultRow(
-                    'Total Pagado:', '\$${totalPagado.toStringAsFixed(0)}',
+                    'Total Pagado:', '\${totalPagado.toStringAsFixed(0)}',
                     isTotal: true),
               ],
             ),
@@ -1397,7 +1214,6 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     );
   }
 
-  // Métodos auxiliares (mantener todos los existentes)
   int _calcularMinutosTranscurridos(DateTime horaEntrada) {
     return DateTime.now().difference(horaEntrada).inMinutes;
   }
@@ -1864,9 +1680,9 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF00B894).withOpacity(0.1),
+              const Color(0xFF00B894).withOpacity(0.08),
               Colors.white,
-              const Color(0xFF2F4858).withOpacity(0.05),
+              const Color(0xFF2F4858).withOpacity(0.03),
             ],
             stops: const [0.0, 0.5, 1.0],
           ),
@@ -1874,9 +1690,9 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         child: SafeArea(
           child: Column(
             children: [
-              // Header moderno con indicador de impresora
+              // HEADER COMPACTO
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [
@@ -1888,46 +1704,30 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(30),
-                    bottomRight: Radius.circular(30),
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
                 child: Column(
                   children: [
-                    Column(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Registro de Vehículos',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                            RotationTransition(
-                              turns: _refreshAnimationController,
-                              child: IconButton(
-                                onPressed: _isLoading ? null : _refreshData,
-                                icon: const Icon(
-                                  Icons.refresh,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                              ),
-                            ),
-                          ],
+                        const Text(
+                          'Registro de Vehículos',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
-                        const SizedBox(height: 12),
                         Row(
                           children: [
                             GestureDetector(
@@ -1936,58 +1736,46 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                                   : _searchPrinters,
                               child: _buildPrinterIndicator(),
                             ),
-                            const Spacer(),
-                            Text(
-                              _printerConnected
-                                  ? 'Toca para desconectar'
-                                  : 'Toca para conectar impresora',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+                            const SizedBox(width: 8),
+                            RotationTransition(
+                              turns: _refreshAnimationController,
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: _isLoading ? null : _refreshData,
+                                icon: const Icon(
+                                  Icons.refresh,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    // Botones de acción
+                    const SizedBox(height: 10),
+                    // BOTONES DE ACCIÓN COMPACTOS
                     Row(
                       children: [
                         Expanded(
                           child: _buildModernButton(
-                            text: 'Registrar Entrada',
+                            text: 'Registrar',
                             onPressed: _isProcessing ? null : _registrarEntrada,
                             backgroundColor: Colors.white,
                             textColor: const Color(0xFF2F4858),
                             isLoading: _isProcessing,
-                            icon: Icons.add_circle,
+                            icon: Icons.add_circle_outline,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: _buildModernButton(
                             text: 'CSV Email',
                             onPressed: mostrarDialogoCorreos,
                             backgroundColor: const Color(0xFF00A085),
                             textColor: Colors.white,
-                            icon: Icons.email,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // NUEVO BOTÓN DE PRUEBA
-                        Expanded(
-                          child: _buildModernButton(
-                            text: 'Test Print',
-                            onPressed: _isTestingPrinter ? null : _testPrinter,
-                            backgroundColor: _printerConnected
-                                ? const Color(0xFF4CAF50)
-                                : const Color(0xFF9E9E9E),
-                            textColor: Colors.white,
-                            isLoading: _isTestingPrinter,
-                            icon: Icons.print,
-                            fontSize: 12,
+                            icon: Icons.email_outlined,
                           ),
                         ),
                       ],
@@ -1996,9 +1784,9 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                 ),
               ),
 
-              // Campos de entrada
+              // CAMPOS DE ENTRADA COMPACTOS
               Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Column(
                   children: [
                     _buildModernTextField(
@@ -2025,7 +1813,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                 ),
               ),
 
-              // Lista de vehículos
+              // LISTA DE VEHÍCULOS - MAXIMIZADO
               Expanded(
                 child: _vehiculosFiltrados.isEmpty
                     ? Center(
@@ -2034,23 +1822,23 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                           children: [
                             Icon(
                               Icons.local_parking,
-                              size: 80,
-                              color: const Color(0xFF2F4858).withOpacity(0.3),
+                              size: 70,
+                              color: const Color(0xFF2F4858).withOpacity(0.25),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             Text(
                               'No hay vehículos registrados',
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w600,
                                 color: const Color(0xFF2F4858).withOpacity(0.7),
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
-                              'Los vehículos aparecerán aquí cuando se registren',
+                              'Los vehículos aparecerán aquí',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 13,
                                 color: const Color(0xFF2F4858).withOpacity(0.5),
                               ),
                               textAlign: TextAlign.center,
@@ -2060,9 +1848,10 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.only(
-                          left: 20,
-                          right: 20,
-                          bottom: 100,
+                          left: 16,
+                          right: 16,
+                          top: 4,
+                          bottom: 80,
                         ),
                         physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: _vehiculosFiltrados.length,

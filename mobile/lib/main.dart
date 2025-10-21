@@ -4,12 +4,10 @@ import 'package:parking/pages/mother_layout/mother_layout.dart';
 import 'package:parking/pages/mother_layout/estacionamiento/historial.dart';
 import 'package:parking/pages/mother_layout/estacionamiento/ingreso.dart';
 import 'package:parking/pages/login/change_pass.dart';
-import 'package:parking/screens/modulos.dart';
 import 'package:parking/pages/mother_layout/administracion/parametros.dart';
-import 'package:parking/pages/mother_layout/administracion/modificar_registro.dart';
+import 'package:parking/pages/mother_layout/administracion/historial_registro.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:parking/pages/superadministracion/registro_superadmin.dart';
-import 'package:parking/screens/superadmin.dart';
 import 'package:parking/pages/superadministracion/administrar_cliente.dart';
 import 'package:parking/pages/login/token_check_screen.dart';
 import 'package:parking/services/printer_background_service.dart';
@@ -46,11 +44,9 @@ class MyApp extends StatelessWidget {
         '/Ingreso': (context) => const RegistroVehiculoScreen(),
         '/Historial': (context) => const HistorialScreen(),
         '/ChangePassScreen': (context) => const ChangePassScreen(),
-        '/Modulos': (context) => const ModuleScreen(),
         '/FijarMonto': (context) => const ParametrosScreen(),
-        '/ModificarRegistro': (context) => const ModificarRegistro(),
+        '/ModificarRegistro': (context) => const HistorialRegistros(),
         '/SuperRegistro': (context) => const SuperRegistro(),
-        '/SuperAdmin': (context) => const SuperAdminScreen(),
         '/CrearCliente': (context) => const AdministrarCliente(),
       },
     );

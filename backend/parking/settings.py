@@ -83,10 +83,19 @@ DATABASES = {
         'NAME': 'parking',
         'USER': 'admin',
         'PASSWORD': '19731223zE',
-        'HOST': 'db',      # <- CAMBIA: nombre del contenedor
-        'PORT': '5432',    # <- CAMBIA: puerto interno del contenedor
+        'HOST': 'db',      
+        'PORT': '5432',    
     }
 }
+
+'''
+Para docker usar:
+        'HOST': 'db',      
+        'PORT': '5432',
+Para el despliegue local usar:
+        'HOST': 'localhost',      
+        'PORT': '5434',
+'''
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators

@@ -241,6 +241,128 @@ class CambiarContrasenaView(APIView):
 #|---------------------------SUPERADMINISTRACION-------------------------------------|
 #|===================================================================================|
 
+class ConsultarRegistrosSociedadView(APIView):
+    """
+    Vista para consultar registros de una sociedad por rango de fechas
+    GET: Obtener resumen y detalle de registros
+    """
+    authentication_classes = [OAuth2Authentication]
+    permission_classes = [IsAuthenticated, TokenHasAnyScope]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.required_scopes = []
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.method == 'GET':
+            self.required_scopes = ['superadmin_access', 'write']
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        """
+        GET: Obtener registros de una sociedad por rango de fechas
+        
+        Query params:
+        - sociedad_id: ID de la sociedad
+        - fecha_inicio: Fecha inicio en formato DD/MM/YYYY
+        - fecha_fin: Fecha fin en formato DD/MM/YYYY
+        """
+        try:
+            sociedad_id = request.query_params.get('sociedad_id')
+            fecha_inicio_str = request.query_params.get('fecha_inicio')
+            fecha_fin_str = request.query_params.get('fecha_fin')
+
+            if not all([sociedad_id, fecha_inicio_str, fecha_fin_str]):
+                return Response({
+                    'status': 'error',
+                    'message': 'Faltan parámetros requeridos: sociedad_id, fecha_inicio, fecha_fin'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verificar que la sociedad existe
+            try:
+                sociedad = Sociedad.objects.get(id=sociedad_id)
+            except Sociedad.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': f'Sociedad con ID {sociedad_id} no encontrada'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Parsear fechas
+            try:
+                fecha_inicio = datetime.strptime(fecha_inicio_str, '%d/%m/%Y')
+                fecha_fin = datetime.strptime(fecha_fin_str, '%d/%m/%Y')
+                
+                # Ajustar fecha_fin para incluir todo el día
+                fecha_fin = fecha_fin.replace(hour=23, minute=59, second=59)
+            except ValueError:
+                return Response({
+                    'status': 'error',
+                    'message': 'Formato de fecha inválido. Use DD/MM/YYYY'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Obtener registros del rango de fechas para esta sociedad
+            registros = Registro.objects.filter(
+                sociedad_id=sociedad_id,
+                hora_inicio__gte=fecha_inicio,
+                hora_inicio__lte=fecha_fin
+            ).select_related('usuario_registrador', 'cliente_registrado').order_by('-hora_inicio')
+
+            # Preparar datos de resumen
+            total_registros = registros.count()
+            total_ingresos = sum(
+                registro.tarifa if registro.tarifa else 0 
+                for registro in registros
+            )
+
+            # Preparar lista de registros detallados
+            registros_detalle = []
+            for registro in registros:
+                registros_detalle.append({
+                    'id': registro.id,
+                    'patente': registro.patente,
+                    'hora_inicio': registro.hora_inicio.strftime('%d/%m/%Y %H:%M:%S'),
+                    'hora_termino': registro.hora_termino.strftime('%d/%m/%Y %H:%M:%S') if registro.hora_termino else None,
+                    'tarifa': float(registro.tarifa) if registro.tarifa else 0,
+                    'cancelado': float(registro.cancelado) if registro.cancelado else 0,
+                    'saldo': float(registro.saldo) if registro.saldo else 0,
+                    'rut_trabajador': registro.usuario_registrador.rut,
+                    'nombre_trabajador': registro.usuario_registrador.nombre,
+                    'cliente_registrado': {
+                        'nombre': registro.cliente_registrado.nombre_cliente,
+                        'rut': registro.cliente_registrado.rut_cliente,
+                        'tipo': registro.cliente_registrado.tipo
+                    } if registro.cliente_registrado else None
+                })
+
+            return Response({
+                'status': 'success',
+                'data': {
+                    'sociedad': {
+                        'id': sociedad.id,
+                        'nombre': sociedad.razon_social,
+                        'rut': sociedad.rut_formateado
+                    },
+                    'periodo': {
+                        'fecha_inicio': fecha_inicio_str,
+                        'fecha_fin': fecha_fin_str
+                    },
+                    'resumen': {
+                        'total_registros': total_registros,
+                        'total_ingresos': round(total_ingresos, 2)
+                    },
+                    'registros': registros_detalle
+                }
+            })
+
+        except Exception as e:
+            print(f"Error en ConsultarRegistrosSociedadView: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'status': 'error',
+                'message': f'Error interno del servidor: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
 class AdministrarSociedadView(APIView):
     """
     Endpoint RESTful completo para administrar sociedades
@@ -909,9 +1031,9 @@ class UsuariosApiView(APIView):
 
     def dispatch(self, request, *args, **kwargs):
         if request.method in ['POST', 'DELETE', 'PUT']:
-            self.required_scopes = ['admin', 'write']
+            self.required_scopes = ['superadmin_access','admin', 'write']
         elif request.method == 'GET':
-            self.required_scopes = ['admin', 'write']
+            self.required_scopes = ['superadmin_access','admin', 'write']
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, id_sociedad, rut=None):
