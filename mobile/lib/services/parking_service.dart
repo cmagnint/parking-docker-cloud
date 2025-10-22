@@ -3,8 +3,10 @@ import 'package:http/http.dart' as http;
 import 'package:parking/utils/globals.dart';
 
 class ApiService {
-  final String baseUrl = 'http://34.176.183.88:8484/parking_app/';
+  final String baseUrl = 'http://parking.terramobile.cl/parking_app/';
+
 //  final String baseUrl = 'http://parking.terramobile.cl/parking_app/';
+//  final String baseUrl = 'http://34.176.183.88:8484/parking_app/';
 
   Future<Map<String, dynamic>> get(String endpoint,
       {bool requiresAuth = true}) async {

@@ -979,14 +979,14 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                       _buildInfoRow('TIEMPO ESTACIONADO:',
                           '$minutosTranscurridos MINUTOS'),
                       _buildInfoRow(
-                          'MONTO A PAGAR:', '\${monto.toStringAsFixed(0)}'),
+                          'MONTO A PAGAR:', '\$${monto.toStringAsFixed(0)}'),
                       if (vehiculo.saldoPendiente > 0)
                         _buildInfoRow('SALDO PENDIENTE:',
-                            '\${vehiculo.saldoPendiente.toStringAsFixed(0)}',
+                            '\$${vehiculo.saldoPendiente.toStringAsFixed(0)}',
                             isWarning: true),
                       const Divider(thickness: 2),
                       _buildInfoRow('TOTAL A PAGAR:',
-                          '\${totalAPagar.toStringAsFixed(0)}',
+                          '\$${totalAPagar.toStringAsFixed(0)}',
                           isTotal: true),
                       const SizedBox(height: 16),
                       if (vehiculo.saldoPendiente == 0)
@@ -1153,12 +1153,12 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildResultRow('Tarifa:', '\${tarifa.toStringAsFixed(0)}'),
+                _buildResultRow('Tarifa:', '\$${tarifa.toStringAsFixed(0)}'),
                 _buildResultRow(
-                    'Saldo Anterior:', '\${saldoAnterior.toStringAsFixed(0)}'),
+                    'Saldo Anterior:', '\$${saldoAnterior.toStringAsFixed(0)}'),
                 const Divider(),
                 _buildResultRow(
-                    'Total Pagado:', '\${totalPagado.toStringAsFixed(0)}',
+                    'Total Pagado:', '\$${totalPagado.toStringAsFixed(0)}',
                     isTotal: true),
               ],
             ),

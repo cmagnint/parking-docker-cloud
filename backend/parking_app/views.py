@@ -964,52 +964,7 @@ class AdministrarSociedadView(APIView):
                 'status': 'error',
                 'message': f'Error interno del servidor: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        
-class RegistroPorFechaAdminView(APIView):
-    def post(self, request):
-        try:
-            data = json.loads(request.body)
-            fecha_str = data.get('fecha')
-            fecha = datetime.strptime(fecha_str, '%d/%m/%Y')
-
-            registros = Registro.objects.filter(hora_inicio__date=fecha.date())
-
-            registros_por_holding = {}
-            for registro in registros:
-                if registro.usuario_registrador.cliente:
-                    holding = registro.usuario_registrador.cliente.nombre_holding
-                else:
-                    try:
-                        holding = Sociedad.objects.get(id=registro.usuario_registrador.cliente).nombre_holding
-                    except Sociedad.DoesNotExist:
-                        holding = "Holding del Jefe No Encontrado"
-
-                if holding not in registros_por_holding:
-                    registros_por_holding[holding] = {
-                        'registros': [],
-                        'tarifa_dia': 0
-                    }
-                
-                registro_data = {
-                    'patente': registro.patente,
-                    'hora_inicio': registro.hora_inicio,
-                    'hora_termino': registro.hora_termino,
-                    'tarifa': registro.tarifa,
-                    'id': registro.id,
-                    'usuario_registrador': registro.usuario_registrador.id
-                }
-                registros_por_holding[holding]['registros'].append(registro_data)
-                registros_por_holding[holding]['tarifa_dia'] += registro.tarifa if registro.tarifa else 0
-
-            return Response({
-                'status': 'success', 
-                'registros_por_holding': registros_por_holding
-            })
-
-        except Exception as e:
-            return Response({'status': 'error', 'message': str(e)})
-        
+   
 #------------------------------------------------------------------------------
 
 #---------------------------ADMINISTRACION-------------------------------------
@@ -1743,66 +1698,6 @@ class GestionRegistrosView(APIView):
                 'message': f'Error al eliminar registros: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-class RegistroPorFechaView(APIView):
-    authentication_classes = [OAuth2Authentication]
-    permission_classes = [IsAuthenticated, TokenHasAnyScope]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.required_scopes = []
-
-    def dispatch(self, request, *args, **kwargs):
-        if request.method in ['POST', 'DELETE', 'PUT']:
-            self.required_scopes = ['admin', 'write']
-        elif request.method == 'GET':
-            self.required_scopes = ['admin', 'write']
-        return super().dispatch(request, *args, **kwargs)
-    
-    def post(self, request):
-        try:
-            data = request.data
-            fecha_str = data.get('fecha')
-            fecha = datetime.strptime(fecha_str, '%d/%m/%Y')
-            codigo_jefe = data.get('id_boss')
-            
-            cliente = Sociedad.objects.get(id=codigo_jefe)
-            usuarios_del_cliente = Usuario.objects.filter(cliente=cliente)
-            
-            registros = Registro.objects.filter(
-                hora_inicio__date=fecha.date(),
-                usuario_registrador__in=usuarios_del_cliente
-            )
-            
-            santiago_tz = pytz.timezone('America/Santiago')
-            
-            registros_data = [{
-                'id': registro.id,
-                'patente': registro.patente,
-                'hora_inicio': registro.hora_inicio.astimezone(santiago_tz).strftime('%H:%M'),
-                'hora_termino': registro.hora_termino.astimezone(santiago_tz).strftime('%H:%M') if registro.hora_termino else None,
-                'cancelado': int(registro.tarifa) if registro.tarifa is not None else None,
-                'saldo': int(registro.saldo) if registro.saldo is not None else None,
-                'usuario_registrador': registro.usuario_registrador.rut
-            } for registro in registros]
-            
-            
-            return Response({'status': 'success', 'registros': registros_data})
-        except Exception as e:
-            return Response({'status': 'error', 'message': str(e)})
-
-class BorrarRegistrosView(APIView):
-    def post(self, request):
-        try:
-            data = request.data
-            ids_para_borrar = data.get('ids', [])
-
-            Registro.objects.filter(id__in=ids_para_borrar).delete()
-
-            return Response({'status': 'success', 'message': 'Registros eliminados exitosamente'})
-
-        except Exception as e:
-            return Response({'status': 'error', 'message': str(e)})
-
 class EnviarCSVView(APIView):
     authentication_classes = [OAuth2Authentication]
     permission_classes = [IsAuthenticated, TokenHasAnyScope]
