@@ -42,7 +42,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
   List<String> correosSeleccionados = [];
   Map<String, bool> correosCheckbox = {};
   bool _isProcessing = false;
-  final bool _isLoading = false;
+  bool _isLoading = false;
   late AnimationController _refreshAnimationController;
   StreamSubscription<bool>? _connectionSubscription;
 
@@ -86,6 +86,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     _refreshAnimationController.dispose();
     _busquedaController.removeListener(_filtrarVehiculos);
     _busquedaController.dispose();
+    _patenteController.dispose();
     super.dispose();
   }
 
@@ -562,6 +563,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     );
   }
 
+  // ✅ MÉTODO MODIFICADO: Ahora incluye detección de registro anterior cerrado
   Future<void> _registrarEntrada() async {
     if (_isProcessing) return;
     setState(() {
@@ -595,6 +597,11 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
       logger.d('usuario_registrador ${userInfo.rut}');
 
       int saldoPendiente = response['saldo_pendiente'] ?? 0;
+      bool registroAnteriorCerrado =
+          response['registro_anterior_cerrado'] ?? false;
+      Map<String, dynamic>? infoRegistroAnterior =
+          response['info_registro_anterior'];
+
       var vehiculo =
           Vehiculo(patente, horaEntrada, saldoPendiente: saldoPendiente);
 
@@ -619,9 +626,21 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         }
       }
 
-      if (response['tiene_saldo_pendiente']) {
+      // ✅ NUEVO: Lógica mejorada para mostrar mensajes
+      if (registroAnteriorCerrado && infoRegistroAnterior != null) {
+        // Si se cerró un registro anterior, mostrar el diálogo especial
+        _mostrarDialogoRegistroAnteriorCerrado(
+          patente: patente,
+          fechaInicio: infoRegistroAnterior['fecha_inicio'],
+          fechaCierre: infoRegistroAnterior['fecha_cierre'],
+          saldoGenerado: infoRegistroAnterior['saldo_generado'],
+          saldoTotalPendiente: saldoPendiente,
+        );
+      } else if (response['tiene_saldo_pendiente']) {
+        // Si hay saldo pendiente (pero no se cerró ningún registro), mostrar diálogo simple
         _mostrarDialogoSaldoPendiente(saldoPendiente);
       } else {
+        // Si no hay saldo pendiente ni se cerró registro, mostrar éxito
         _mostrarDialogoExito('Vehículo registrado exitosamente');
       }
     } catch (e) {
@@ -766,6 +785,312 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
           ],
         );
       },
+    );
+  }
+
+  // ✅ NUEVO MÉTODO: Diálogo para registro anterior cerrado automáticamente
+  void _mostrarDialogoRegistroAnteriorCerrado({
+    required String patente,
+    required String fechaInicio,
+    required String fechaCierre,
+    required int saldoGenerado,
+    required int saldoTotalPendiente,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Registro Anterior Detectado',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Patente destacada
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00A085).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF00A085),
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      patente.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF00A085),
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Mensaje principal
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '⚠️ Este vehículo no fue despachado',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDialogInfoRow(
+                        icon: Icons.login,
+                        label: 'Ingreso anterior:',
+                        value: fechaInicio,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDialogInfoRow(
+                        icon: Icons.event,
+                        label: 'Cerrado automáticamente:',
+                        value: fechaCierre,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Información financiera
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.red.withOpacity(0.1),
+                        Colors.red.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.red.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Saldo generado por registro anterior:',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            '\$${saldoGenerado.toString()}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (saldoTotalPendiente > saldoGenerado) ...[
+                        const SizedBox(height: 8),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Saldo pendiente de otros registros:',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            Text(
+                              '\$${(saldoTotalPendiente - saldoGenerado).toString()}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'SALDO TOTAL PENDIENTE:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              '\$${saldoTotalPendiente.toString()}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Nota informativa
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.blue.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blue[700],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'El saldo se cobrará al momento de la salida del vehículo.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                backgroundColor: const Color(0xFF00A085),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'ENTENDIDO',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ✅ MÉTODO AUXILIAR para el diálogo de registro anterior cerrado
+  Widget _buildDialogInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: Colors.orange,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1006,6 +1331,9 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                             ),
                           ),
                           keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           onChanged: (value) {
                             limitAbonoInput();
                           },
@@ -1015,59 +1343,88 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                 ),
               ),
               actions: <Widget>[
-                if (vehiculo.saldoPendiente == 0)
-                  TextButton(
-                    onPressed: isAbonoValid
-                        ? () {
-                            Navigator.of(context).pop();
-                            _registrarSalida(
-                              vehiculo,
-                              int.parse(abonoController.text),
-                              vehiculo.saldoPendiente,
-                            );
-                          }
-                        : null,
-                    child: Text(
-                      'ABONAR',
-                      style: TextStyle(
-                        color: isAbonoValid
-                            ? const Color(0xFF00A085)
-                            : Colors.grey,
-                        fontWeight: FontWeight.w600,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'CANCELAR',
+                          style: TextStyle(
+                            color: Color(0xFF2F4858),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ElevatedButton(
-                  onPressed: isPagarTotalEnabled
-                      ? () {
-                          Navigator.of(context).pop();
-                          _registrarSalida(
-                              vehiculo, totalAPagar, vehiculo.saldoPendiente);
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00B894),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: isAbonoValid
+                            ? () {
+                                Navigator.of(context).pop();
+                                _registrarSalida(
+                                  vehiculo,
+                                  int.parse(abonoController.text),
+                                  vehiculo.saldoPendiente,
+                                );
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00B894),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'ABONO',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'PAGAR TOTAL',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: isPagarTotalEnabled
+                            ? () {
+                                Navigator.of(context).pop();
+                                _registrarSalida(
+                                  vehiculo,
+                                  totalAPagar,
+                                  vehiculo.saldoPendiente,
+                                );
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2F4858),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'PAGAR TOTAL',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text(
-                    'CANCELAR',
-                    style: TextStyle(
-                      color: Color(0xFF2F4858),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  ],
                 ),
               ],
             );
@@ -1078,9 +1435,9 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
   }
 
   Widget _buildInfoRow(String label, String value,
-      {bool isTotal = false, bool isWarning = false}) {
+      {bool isWarning = false, bool isTotal = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1088,19 +1445,23 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
             label,
             style: TextStyle(
               fontSize: isTotal ? 16 : 14,
-              fontWeight: isTotal ? FontWeight.w700 : FontWeight.w600,
-              color: isWarning ? Colors.red : const Color(0xFF2F4858),
+              fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
+              color: isWarning
+                  ? Colors.red
+                  : isTotal
+                      ? const Color(0xFF2F4858)
+                      : const Color(0xFF2F4858).withOpacity(0.8),
             ),
           ),
           Text(
             value,
             style: TextStyle(
-              fontSize: isTotal ? 16 : 14,
+              fontSize: isTotal ? 18 : 15,
               fontWeight: FontWeight.w700,
-              color: isTotal
-                  ? const Color(0xFF00B894)
-                  : isWarning
-                      ? Colors.red
+              color: isWarning
+                  ? Colors.red
+                  : isTotal
+                      ? const Color(0xFF00B894)
                       : const Color(0xFF2F4858),
             ),
           ),
@@ -1110,7 +1471,7 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
   }
 
   void _mostrarDialogoResultado(
-      BuildContext context, var tarifa, var totalPagado, var saldoAnterior) {
+      BuildContext context, tarifa, totalPagado, saldoAnterior) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1127,14 +1488,14 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Icon(
-                  Icons.receipt_long,
+                  Icons.check_circle,
                   color: Color(0xFF00B894),
                   size: 24,
                 ),
               ),
               const SizedBox(width: 12),
               const Text(
-                'Registro de Salida',
+                'Salida registrada',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -1151,14 +1512,14 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildResultRow('Tarifa:', '\$${tarifa.toStringAsFixed(0)}'),
-                _buildResultRow(
-                    'Saldo Anterior:', '\$${saldoAnterior.toStringAsFixed(0)}'),
-                const Divider(),
-                _buildResultRow(
-                    'Total Pagado:', '\$${totalPagado.toStringAsFixed(0)}',
+                _buildInfoRow('TARIFA:', '\$${tarifa.toStringAsFixed(0)}'),
+                if (saldoAnterior > 0)
+                  _buildInfoRow('SALDO ANTERIOR:',
+                      '\$${saldoAnterior.toStringAsFixed(0)}'),
+                const Divider(thickness: 2),
+                _buildInfoRow(
+                    'TOTAL PAGADO:', '\$${totalPagado.toStringAsFixed(0)}',
                     isTotal: true),
               ],
             ),
@@ -1166,7 +1527,11 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
           actions: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00A085),
+                backgroundColor: const Color(0xFF00B894),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -1186,113 +1551,159 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     );
   }
 
-  Widget _buildResultRow(String label, String value, {bool isTotal = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: isTotal ? 16 : 14,
-              fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
-              color: const Color(0xFF2F4858),
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isTotal ? 16 : 14,
-              fontWeight: FontWeight.w700,
-              color:
-                  isTotal ? const Color(0xFF00B894) : const Color(0xFF2F4858),
-            ),
-          ),
-        ],
-      ),
+  void mostrarDialogoCorreos() {
+    correosSeleccionados.clear();
+    correosCheckbox = {for (var correo in correos) correo: false};
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00B894).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.email,
+                      color: Color(0xFF00B894),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Selecciona los correos',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2F4858),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: correos.map((correo) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: correosCheckbox[correo] == true
+                              ? const Color(0xFF00B894).withOpacity(0.1)
+                              : Colors.transparent,
+                        ),
+                        child: CheckboxListTile(
+                          title: Text(
+                            correo,
+                            style: const TextStyle(
+                              fontSize: 14,
+                            ),
+                          ),
+                          value: correosCheckbox[correo],
+                          activeColor: const Color(0xFF00B894),
+                          onChanged: (bool? valor) {
+                            setStateDialog(() {
+                              correosCheckbox[correo] = valor ?? false;
+                            });
+                            if (valor == true) {
+                              correosSeleccionados.add(correo);
+                            } else {
+                              correosSeleccionados.remove(correo);
+                            }
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(
+                      color: Color(0xFF2F4858),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    _showProgressDialog(context);
+                    bool success = await sendData(
+                        DateFormat('yyyy-MM-dd').format(DateTime.now()),
+                        DateFormat('yyyy-MM-dd').format(DateTime.now()),
+                        userInfo.sociedadId,
+                        correosSeleccionados);
+                    loggerGlobal.d(success);
+                    if (success) {
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).pop();
+                        _showSucces(context);
+                      }
+                    } else {
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).pop();
+                        _showFail(context);
+                      }
+                    }
+                    loggerGlobal.d(correosSeleccionados);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00B894),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Enviar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  int _calcularMinutosTranscurridos(DateTime horaEntrada) {
-    return DateTime.now().difference(horaEntrada).inMinutes;
-  }
-
-  int calcularMonto(int minutosRedondeados, int tiempotranscurrido) {
-    int total = (minutosRedondeados / userInfo.tiempoParametro).round() *
-        userInfo.valorParametro;
-    if (tiempotranscurrido < userInfo.tiempoMinimo) {
-      return (userInfo.montoMinimo);
-    } else {
-      return (total);
-    }
-  }
-
-  void _filtrarVehiculos() {
-    if (_busquedaController.text.isEmpty) {
-      _vehiculosFiltrados = List.from(_vehiculos);
-    } else {
-      _vehiculosFiltrados = _vehiculos
-          .where((vehiculo) => vehiculo.patente
-              .toLowerCase()
-              .contains(_busquedaController.text.toLowerCase()))
-          .toList();
-    }
-  }
-
-  Future<void> _cargarRegistrosDelDia() async {
-    _showLoadingDialog();
+  Future<bool> sendData(
+      String start, String end, int userId, List<dynamic> email) async {
     try {
-      var codigoSociedad = userInfo.sociedadId;
-
-      var jsonResponse = await _apiService.post('obtener_registros_del_dia/', {
-        'codigo_sociedad': codigoSociedad,
+      var response = await _apiService.post('enviar_csv/', {
+        'formattedStartDate': start,
+        'formattedEndDate': end,
+        'id_cliente': userId.toString(),
+        'email': email,
+        'rut_cliente': userInfo.rut,
       });
 
-      loggerGlobal.d(jsonResponse);
-      List<dynamic> registros = jsonResponse['datos'];
-      var parametros = jsonResponse['parametros'];
-      loggerGlobal.d(parametros);
-      userInfo.tiempoParametro = parametros['intervalo_parametro'];
-      userInfo.montoMinimo = parametros['monto_minimo'];
-      userInfo.tiempoMinimo = parametros['intervalo_minimo'];
-      userInfo.valorParametro = parametros['valor_parametro'];
-      loggerGlobal.d(userInfo.tiempoParametro);
-
-      setState(() {
-        _vehiculos = registros
-            .map((registro) => Vehiculo(
-                  registro['patente'],
-                  _convertirHoraLocal(DateTime.parse(registro['hora_inicio'])),
-                  saldoPendiente: registro['saldo_pendiente'] ?? 0,
-                ))
-            .toList();
-        _filtrarVehiculos();
-      });
-    } catch (e) {
-      loggerGlobal.e('Error al cargar registros del día: $e');
-      _mostrarDialogoError('Error al cargar registros: $e');
-    } finally {
-      if (mounted) {
-        Navigator.of(context).pop();
+      if (response['status'] == 'success') {
+        return true;
+      } else if (response['status'] == 'error') {
+        return false;
       }
-    }
-  }
-
-  void pedirCorreos(int codigoSociedad) async {
-    loggerGlobal.d('funcion llamada');
-    try {
-      var responseData = await _apiService
-          .post('pedir_correos/', {'sociedad_id': codigoSociedad});
-
-      if (responseData['correos'] != null) {
-        correos = responseData['correos'];
-        loggerGlobal.d(correos);
-      } else {
-        loggerGlobal.d(responseData['message']);
-      }
+      return false;
     } catch (e) {
-      loggerGlobal.e('Exception: $e');
+      loggerGlobal.e('Error al enviar CSV: $e');
+      return false;
     }
   }
 
@@ -1408,210 +1819,48 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
     );
   }
 
-  void mostrarDialogoCorreos() {
-    correosSeleccionados.clear();
-    correosCheckbox = {for (var correo in correos) correo: false};
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setStateDialog) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00B894).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Icon(
-                      Icons.email,
-                      color: Color(0xFF00B894),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Selecciona los correos',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF2F4858),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.8,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: correos.map((correo) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: correosCheckbox[correo] == true
-                              ? const Color(0xFF00B894).withOpacity(0.1)
-                              : Colors.transparent,
-                        ),
-                        child: CheckboxListTile(
-                          title: Text(
-                            correo,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF2F4858),
-                            ),
-                          ),
-                          value: correosCheckbox[correo],
-                          activeColor: const Color(0xFF00B894),
-                          onChanged: (bool? valor) {
-                            setStateDialog(() {
-                              correosCheckbox[correo] = valor ?? false;
-                            });
-                            if (valor == true) {
-                              correosSeleccionados.add(correo);
-                            } else {
-                              correosSeleccionados.remove(correo);
-                            }
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text(
-                    'Cancelar',
-                    style: TextStyle(
-                      color: Color(0xFF2F4858),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    _showProgressDialog(context);
-                    bool success = await sendData(
-                        DateFormat('yyyy-MM-dd').format(DateTime.now()),
-                        DateFormat('yyyy-MM-dd').format(DateTime.now()),
-                        userInfo.sociedadId,
-                        correosSeleccionados);
-                    loggerGlobal.d(success);
-                    if (success) {
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).pop();
-                        _showSucces(context);
-                      }
-                    } else {
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).pop();
-                        _showFail(context);
-                      }
-                    }
-                    loggerGlobal.d(correosSeleccionados);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00B894),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    'Enviar',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<bool> sendData(
-      String start, String end, int userId, List<dynamic> email) async {
-    try {
-      var responseBody = await _apiService.post('enviar_csv/', {
-        'formattedStartDate': start,
-        'formattedEndDate': end,
-        'id_cliente': userInfo.sociedadId,
-        'email': email,
-      });
-
-      if (responseBody['status'] == 'success') {
-        return true;
-      } else if (responseBody['status'] == 'error') {
-        return false;
-      }
-    } catch (e) {
-      loggerGlobal.e('Error al enviar datos: $e');
-    }
-    return false;
-  }
-
   Future _showProgressDialog(BuildContext context) {
     return showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white,
-                  const Color(0xFF00B894).withOpacity(0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 60,
-                  height: 60,
-                  child: Lottie.asset(
-                    'assets/animations/request_code.json',
-                    repeat: true,
-                    animate: true,
-                  ),
-                ),
-                const SizedBox(width: 20),
-                const Text(
-                  "ENVIANDO CSV...",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Color(0xFF2F4858),
-                  ),
-                ),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white,
+                const Color(0xFF00B894).withOpacity(0.1),
               ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
-        );
-      },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 60,
+                height: 60,
+                child: Lottie.asset('assets/animations/request_code.json'),
+              ),
+              const SizedBox(width: 20),
+              const Text(
+                "ENVIANDO CSV...",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Color(0xFF2F4858),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1658,6 +1907,96 @@ class RegistroVehiculoScreenState extends State<RegistroVehiculoScreen>
         ),
       ),
     );
+  }
+
+  int _calcularMinutosTranscurridos(DateTime horaEntrada) {
+    return DateTime.now().difference(horaEntrada).inMinutes;
+  }
+
+  int calcularMonto(int minutosRedondeados, int tiempotranscurrido) {
+    int total = (minutosRedondeados / userInfo.tiempoParametro).round() *
+        userInfo.valorParametro;
+    if (tiempotranscurrido < userInfo.tiempoMinimo) {
+      return (userInfo.montoMinimo);
+    } else {
+      return (total);
+    }
+  }
+
+  void _filtrarVehiculos() {
+    setState(() {
+      if (_busquedaController.text.isEmpty) {
+        _vehiculosFiltrados = List.from(_vehiculos);
+      } else {
+        _vehiculosFiltrados = _vehiculos
+            .where((vehiculo) => vehiculo.patente
+                .toLowerCase()
+                .contains(_busquedaController.text.toLowerCase()))
+            .toList();
+      }
+    });
+  }
+
+  Future<void> _cargarRegistrosDelDia() async {
+    setState(() {
+      _isLoading = true;
+    });
+    _showLoadingDialog();
+    try {
+      var codigoSociedad = userInfo.sociedadId;
+
+      var jsonResponse = await _apiService.post('obtener_registros_del_dia/', {
+        'codigo_sociedad': codigoSociedad,
+      });
+
+      loggerGlobal.d(jsonResponse);
+      List<dynamic> registros = jsonResponse['datos'];
+      var parametros = jsonResponse['parametros'];
+      loggerGlobal.d(parametros);
+      userInfo.tiempoParametro = parametros['intervalo_parametro'];
+      userInfo.montoMinimo = parametros['monto_minimo'];
+      userInfo.tiempoMinimo = parametros['intervalo_minimo'];
+      userInfo.valorParametro = parametros['valor_parametro'];
+      loggerGlobal.d(userInfo.tiempoParametro);
+
+      setState(() {
+        _vehiculos = registros
+            .map((registro) => Vehiculo(
+                  registro['patente'],
+                  _convertirHoraLocal(DateTime.parse(registro['hora_inicio'])),
+                  saldoPendiente: registro['saldo_pendiente'] ?? 0,
+                ))
+            .toList();
+        _filtrarVehiculos();
+      });
+    } catch (e) {
+      loggerGlobal.e('Error al cargar registros del día: $e');
+      _mostrarDialogoError('Error al cargar registros: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
+  void pedirCorreos(int codigoSociedad) async {
+    loggerGlobal.d('funcion llamada');
+    try {
+      var responseData = await _apiService
+          .post('pedir_correos/', {'sociedad_id': codigoSociedad});
+
+      if (responseData['correos'] != null) {
+        correos = responseData['correos'];
+        loggerGlobal.d(correos);
+      } else {
+        loggerGlobal.d(responseData['message']);
+      }
+    } catch (e) {
+      loggerGlobal.e('Exception: $e');
+    }
   }
 
   DateTime _convertirHoraLocal(DateTime horaUtc) {

@@ -37,7 +37,6 @@ from .models import (
 )
 
 from .serializers import (
-    ClientesRegistradosSerializer,
     LoginSerializer,
     UsuarioSerializer,
     ServiciosSerializer,
@@ -1303,14 +1302,14 @@ class PedirCorreosView(APIView):
 
     def post(self, request):
         try:
-            sociedad_id = int(request.data.get('sociedad_id'))
-            print(f"Buscando cliente con ID: {sociedad_id}")
+            sociedad_id = int(request.data.get('sociedad_id'))  # 🔴 CAMBIO: cliente_id → sociedad_id
+            print(f"Buscando sociedad con ID: {sociedad_id}")
 
             try:
                 sociedad = Sociedad.objects.get(id=sociedad_id)
-                print(f"Cliente encontrado: {sociedad.razon_social}")
+                print(f"Sociedad encontrada: {sociedad.razon_social}")
 
-                # Buscar todos los usuarios asociados a este cliente, incluyendo al jefe
+                # Buscar todos los usuarios asociados a esta sociedad
                 usuarios = Usuario.objects.filter(sociedad_id=sociedad_id)
                 print(f"Usuarios encontrados: {usuarios.count()}")
 
@@ -1818,11 +1817,12 @@ class EnviarCSVServiciosView(APIView):
         
         registros = RegistroServicios.objects.filter(
             Q(dia_agendado__range=(start_date, end_date)) &
-            Q(cliente_holding_id=id_cliente)
-        ).select_related('cliente_holding', 'cliente_servicio', 'servicio', 'tipo_vehiculo')
+            Q(cliente_sociedad_id=id_cliente)  # 🔴 CAMBIO: cliente_holding_id → cliente_sociedad_id
+        ).select_related('cliente_sociedad', 'cliente_servicio', 'servicio', 'tipo_vehiculo')  # 🔴 CAMBIO: cliente_holding → cliente_sociedad
         
         if not registros:
             return Response({'status': 'error', 'message': 'No se encontraron registros en las fechas proporcionadas.'})
+        
         
         zona_horaria_santiago = pytz.timezone('America/Santiago')
         registros_formateados = []
@@ -1960,6 +1960,16 @@ class ObtenerRegistrosDelDiaView(APIView):
         return Response({'datos': datos, 'parametros': parametros})
 
 class RegistroInicialView(APIView):
+    """
+    Vista para registrar la entrada de un vehículo al estacionamiento.
+    
+    Funcionalidad mejorada:
+    - Detecta si hay un registro anterior sin cerrar (sin fecha_termino) para la misma patente
+    - Cierra automáticamente el registro anterior con la fecha/hora actual
+    - Calcula el saldo generado por el registro no cerrado
+    - Retorna información completa sobre el registro cerrado al frontend
+    """
+    
     authentication_classes = [OAuth2Authentication]
     permission_classes = [IsAuthenticated, TokenHasAnyScope]
 
@@ -1978,10 +1988,14 @@ class RegistroInicialView(APIView):
         data = request.data
         patente = data.get('patente')
         rut_registrado = data.get('usuario_registrador')
+        
+        # Obtener usuario que registra
         usuario = Usuario.objects.get(rut=rut_registrado)
         
+        # Buscar saldo pendiente previo
         registro_con_saldo = Registro.objects.filter(patente=patente, saldo__gt=0).first()
         
+        # Verificar si es un cliente que no debe registrarse
         if ClientesRegistrados.objects.filter(patente_cliente=patente).exists():
             cliente = ClientesRegistrados.objects.get(patente_cliente=patente)
             if cliente.registrar == False:
@@ -1989,33 +2003,118 @@ class RegistroInicialView(APIView):
                     'error': f'El cliente no se registra, pertenece al convenio de los que pagan de forma {cliente.tipo}'
                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        registro_activo = Registro.objects.filter(patente=patente, hora_termino__isnull=True).exists()
+        # ✅ NUEVO: Verificar si hay un registro anterior SIN CERRAR (sin fecha_termino)
+        registro_anterior_abierto = Registro.objects.filter(
+            patente=patente, 
+            hora_termino__isnull=True
+        ).exclude(
+            hora_inicio__date=timezone.now().date()  # Excluir registros del día actual
+        ).first()
+        
+        # Variables para rastrear información del registro cerrado
+        registro_anterior_cerrado = False
+        info_registro_anterior = None
+        saldo_generado_registro_anterior = 0
+        
+        # ✅ NUEVO: Si existe un registro anterior abierto, cerrarlo automáticamente
+        if registro_anterior_abierto:
+            zona_horaria_santiago = pytz.timezone('America/Santiago')
+            fecha_cierre = timezone.now().astimezone(zona_horaria_santiago)
+            
+            # Obtener parámetros de tarifa
+            parametro = Parametro.objects.get(sociedad_id=usuario.sociedad.id)
+            
+            # Calcular tiempo transcurrido y tarifa
+            hora_inicio_santiago = registro_anterior_abierto.hora_inicio.astimezone(zona_horaria_santiago)
+            tiempo_minutos = trunc(((fecha_cierre - hora_inicio_santiago).total_seconds()) / 60)
+            
+            # Calcular tarifa según parámetros
+            if tiempo_minutos < parametro.intervalo_minimo:
+                tarifa = parametro.monto_minimo
+            else:
+                intervalos = ceil(tiempo_minutos / parametro.intervalo_minutos)
+                tarifa = intervalos * parametro.monto_por_intervalo
+            
+            # Obtener saldo anterior (si existe)
+            saldo_anterior = registro_anterior_abierto.saldo if registro_anterior_abierto.saldo else 0
+            
+            # El saldo generado es la tarifa (no se pagó nada)
+            saldo_generado = tarifa
+            
+            # El nuevo saldo total es: saldo_anterior + tarifa
+            nuevo_saldo = saldo_anterior + tarifa
+            
+            # Cerrar el registro anterior
+            registro_anterior_abierto.hora_termino = fecha_cierre
+            registro_anterior_abierto.tarifa = tarifa
+            registro_anterior_abierto.cancelado = 0  # No se pagó nada
+            registro_anterior_abierto.saldo = nuevo_saldo  # Saldo acumulado
+            registro_anterior_abierto.save()
+            
+            # Guardar información para retornar al frontend
+            registro_anterior_cerrado = True
+            saldo_generado_registro_anterior = saldo_generado
+            info_registro_anterior = {
+                'fecha_inicio': hora_inicio_santiago.strftime('%d/%m/%Y %H:%M'),
+                'fecha_cierre': fecha_cierre.strftime('%d/%m/%Y %H:%M'),
+                'tiempo_minutos': tiempo_minutos,
+                'tarifa': tarifa,
+                'saldo_anterior': saldo_anterior,
+                'saldo_generado': saldo_generado,
+                'nuevo_saldo': nuevo_saldo
+            }
+            
+            print(f"✅ Registro anterior cerrado automáticamente:")
+            print(f"   Patente: {patente}")
+            print(f"   Fecha inicio: {info_registro_anterior['fecha_inicio']}")
+            print(f"   Fecha cierre: {info_registro_anterior['fecha_cierre']}")
+            print(f"   Saldo generado: ${saldo_generado}")
+            print(f"   Nuevo saldo total: ${nuevo_saldo}")
+        
+        # Verificar si hay un registro activo DEL DÍA ACTUAL
+        registro_activo = Registro.objects.filter(
+            patente=patente, 
+            hora_termino__isnull=True,
+            hora_inicio__date=timezone.now().date()
+        ).exists()
+        
         if registro_activo:
             return Response({
                 'error': 'La patente sigue activa'
             }, status=status.HTTP_400_BAD_REQUEST)
-            
+        
+        # Calcular saldo pendiente total
         if registro_con_saldo is not None and registro_con_saldo.saldo is not None:
             saldo_pendiente = int(registro_con_saldo.saldo)
         else:   
             saldo_pendiente = 0
-            
+        
         try:
-            # 🔧 CORRECCIÓN: Agregar sociedad del usuario
+            # Crear nuevo registro de entrada
             registro = Registro.objects.create(
                 patente=patente, 
                 usuario_registrador_id=usuario.id,
-                sociedad_id=usuario.sociedad_id,  # ✅ AGREGAR ESTA LÍNEA
+                sociedad_id=usuario.sociedad_id,
                 hora_termino=None
             )
-            return Response({
+            
+            # ✅ NUEVO: Retornar información completa sobre registro anterior cerrado
+            response_data = {
                 'mensaje': 'Entrada registrada', 
                 'id': registro.id,
                 'tiene_saldo_pendiente': registro_con_saldo is not None,
-                'saldo_pendiente': saldo_pendiente
-            })
+                'saldo_pendiente': saldo_pendiente,
+                'registro_anterior_cerrado': registro_anterior_cerrado,
+            }
+            
+            # Si se cerró un registro anterior, incluir su información
+            if registro_anterior_cerrado:
+                response_data['info_registro_anterior'] = info_registro_anterior
+            
+            return Response(response_data)
+            
         except Exception as e:
-            print(e)
+            print(f"❌ Error al crear registro: {e}")
             return Response({
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -2150,54 +2249,6 @@ class PedirHistorialView(APIView):
 
         return Response({'data' : data})
 
-class ClientesRegistradosView(APIView):
-    authentication_classes = [OAuth2Authentication]
-    permission_classes = [IsAuthenticated, TokenHasAnyScope]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.required_scopes = []
-
-    def dispatch(self, request, *args, **kwargs):
-        if request.method in ['POST', 'DELETE', 'PUT']:
-            self.required_scopes = ['admin', 'write']
-        elif request.method == 'GET':
-            self.required_scopes = ['admin', 'write']
-        return super().dispatch(request, *args, **kwargs)
-
-    def get(self, request):
-        clientes = ClientesRegistrados.objects.all()
-        serializer = ClientesRegistradosSerializer(clientes, many=True)
-        return Response({'data':serializer.data})
-
-    def post(self, request):
-        serializer = ClientesRegistradosSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def put(self, request, pk):
-        try:
-            cliente = ClientesRegistrados.objects.get(pk=pk)
-        except ClientesRegistrados.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        serializer = ClientesRegistradosSerializer(cliente, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk):
-        try:
-            cliente = ClientesRegistrados.objects.get(pk=pk)
-        except ClientesRegistrados.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        cliente.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
 class ServiciosView(APIView):
     authentication_classes = [OAuth2Authentication]
     permission_classes = [IsAuthenticated, TokenHasAnyScope]
@@ -2214,14 +2265,14 @@ class ServiciosView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        cliente_id = request.query_params.get('cliente_id')
-        if cliente_id:
-            servicios = Servicios.objects.filter(cliente_id=cliente_id)
+        # 🔴 CAMBIO: Usar 'sociedad_id' en lugar de 'cliente_id'
+        sociedad_id = request.query_params.get('sociedad_id')
+        if sociedad_id:
+            servicios = Servicios.objects.filter(sociedad_id=sociedad_id)
         else:
             servicios = Servicios.objects.all()
         serializer = ServiciosSerializer(servicios, many=True)
         return Response({'data': serializer.data}, content_type='application/json; charset=utf-8')
-
 
     def post(self, request):
         serializer = ServiciosSerializer(data=request.data)
@@ -2267,7 +2318,12 @@ class RegistroServiciosView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        servicios = RegistroServicios.objects.all()
+        # 🔴 CAMBIO: Filtrar por sociedad_id si se proporciona
+        sociedad_id = request.query_params.get('sociedad_id')
+        if sociedad_id:
+            servicios = RegistroServicios.objects.filter(cliente_sociedad_id=sociedad_id)
+        else:
+            servicios = RegistroServicios.objects.all()
         serializer = RegistroServiciosSerializer(servicios, many=True)
         print(serializer.data)
         return Response({'data':serializer.data},content_type='application/json; charset=utf-8')
@@ -2327,9 +2383,9 @@ class ClientesServiciosView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        cliente_id = request.query_params.get('cliente_id')
-        if cliente_id:
-            clientes = ClientesServicios.objects.filter(cliente_id=cliente_id)
+        sociedad_id = request.query_params.get('sociedad_id')
+        if sociedad_id:
+            clientes = ClientesServicios.objects.filter(sociedad_id=sociedad_id)
         else:
             clientes = ClientesServicios.objects.all()
         serializer = ClientesServiciosSerializer(clientes, many=True)

@@ -51,20 +51,17 @@ class UsuarioSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Este correo ya está registrado")
         return value
 
-class ClientesRegistradosSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ClientesRegistrados
-        fields = ['id', 'rut_cliente', 'nombre_cliente', 'patente_cliente', 'tipo', 'valor', 'modo_pago', 'registrar']
-
 class ServiciosSerializer(serializers.ModelSerializer):
-    nombre_cliente = serializers.SerializerMethodField(read_only=True)
+    nombre_sociedad = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = Servicios
-        fields = ['id', 'nombre_servicio', 'valor_servicio', 'duracion_servicio', 'cliente','nombre_cliente']
+        fields = ['id', 'nombre_servicio', 'valor_servicio', 'duracion_servicio', 'sociedad', 'nombre_sociedad']
     
-    def get_nombre_cliente(self, obj):
-        if obj.cliente:
-            return obj.cliente.nombre_holding
+    def get_nombre_sociedad(self, obj):
+        """Retorna el nombre de la sociedad a la que pertenece el servicio"""
+        if obj.sociedad:
+            return obj.sociedad.razon_social
         return None
 
 class RegistroServiciosSerializer(serializers.ModelSerializer):
@@ -79,10 +76,11 @@ class RegistroServiciosSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RegistroServicios
-        fields = ['id','cliente_holding','cliente_servicio','nombre_cliente_servicio','servicio','nombre_servicio',
-                  'tipo_vehiculo','cancelado_completo','abonado','nombre_vehiculo', 'patente',
-                'dia_agendado','servicio_finalizado','valor_servicio_personalizado','duracion_servicio_personalizada',
-            'valor_final','duracion_final']
+        fields = ['id', 'cliente_sociedad', 'cliente_servicio', 'nombre_cliente_servicio',  # 🔴 CAMBIO: cliente_holding → cliente_sociedad
+                  'servicio', 'nombre_servicio', 'tipo_vehiculo', 'cancelado_completo', 
+                  'abonado', 'nombre_vehiculo', 'patente', 'dia_agendado', 'servicio_finalizado',
+                  'valor_servicio_personalizado', 'duracion_servicio_personalizada',
+                  'valor_final', 'duracion_final']
 
     def get_nombre_servicio(self, obj):
         if obj.servicio:
@@ -105,17 +103,17 @@ class RegistroServiciosSerializer(serializers.ModelSerializer):
     def get_duracion_final(self, obj):
         return obj.duracion_final
     
-
-    
 class ClientesServiciosSerializer(serializers.ModelSerializer):
-    nombre_cliente = serializers.SerializerMethodField(read_only=True)
+    nombre_sociedad = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = ClientesServicios
-        fields = ['id', 'nombre', 'rut', 'celular', 'correo','cliente','nombre_cliente']
-
-    def get_nombre_cliente(self, obj):
-        if obj.cliente:
-            return obj.cliente.nombre_holding
+        fields = ['id', 'nombre', 'rut', 'celular', 'correo', 'sociedad', 'nombre_sociedad']
+    
+    def get_nombre_sociedad(self, obj):
+        """Retorna el nombre de la sociedad a la que pertenece el cliente"""
+        if obj.sociedad:
+            return obj.sociedad.razon_social
         return None
     
 class TipoVehiculoSerializer(serializers.ModelSerializer):
